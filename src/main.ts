@@ -38,6 +38,7 @@ const PREVIEW = 720, EXPORT = 2400;
 const view = $<HTMLCanvasElement>('view'), ctx = view.getContext('2d')!;
 let all: Sample[] = [], groups: string[] = [];
 const picked = new Set<string>(), materials = new Map<string, Material>();
+let ownBusy = false, exporting = false;
 let seed = 48213, shuf = 0, showSources = false, camo: Camo | null = null, camoKey = '', token = 0;
 
 function params(patternId = $('pattern').value): Params {
@@ -64,6 +65,18 @@ function dims(longEdge: number): [number, number] {
   return [Math.round(longEdge * r[0] / m), Math.round(longEdge * r[1] / m)];
 }
 function setStatus(t: string): void { $('status').textContent = t; }
+/**
+ * 作業中の表示。プレビューの上に、回る輪と文言を重ねる。null で消す。
+ * 計算は画面と同じ場所で走るので、あいだは画面が止まる。輪は transform の動きなので、止まっているあいだも回る。
+ */
+let busyCount = 0;
+function setBusy(t: string | null): void {
+  const el = $('busy');
+  if (t === null) { el.hidden = true; $('viewport').classList.remove('working'); return; }
+  $('busy-text').textContent = t; el.hidden = false; $('viewport').classList.add('working');
+}
+/** 画面を一度描かせてから先へ進む。重い計算の前に、作業中の表示を確実に出すため */
+const paintNow = (): Promise<void> => new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0)));
 
 /** 選んだ種類から、種類ごとに先頭 per 枚 */
 function chosen(): Sample[] {
@@ -212,9 +225,10 @@ async function produce(longEdge: number, reuse: boolean): Promise<HTMLCanvasElem
 
 async function draw(): Promise<void> {
   const mine = ++token, t0 = performance.now();
-  setStatus('描いている…');
-  await new Promise((r) => setTimeout(r, 20)); // 「描いている」を先に画面へ出す
-  if (mine !== token) return;
+  if (exporting) return; // 書き出しのあいだは描き直さない。終わったら書き出しの側が描き直す
+  busyCount++; setBusy(chosen().length > 12 || $('compare').value ? '描いている…（枚数が多いと時間がかかる）' : '描いている…');
+  await paintNow(); // 「描いている」を先に画面へ出す
+  if (mine !== token) { busyCount--; return; }
   try {
     const c = await produce($('compare').value ? 1080 : PREVIEW, true);
     if (mine !== token) return;
@@ -226,6 +240,8 @@ async function draw(): Promise<void> {
     setStatus(all.length ? (n ? '' : '種類を1つ選んで。') : '素材がまだない。「自分の画像を足す」から入れて。');
   } catch (e) {
     setStatus(e instanceof Error ? e.message : String(e));
+  } finally { // 途中でやめたときも、作業中の表示を必ず片づける
+    if (--busyCount <= 0) { busyCount = 0; if (!exporting && !ownBusy) setBusy(null); }
   }
   writeUrl();
 }
@@ -335,7 +351,7 @@ $('reseed').addEventListener('click', () => { seed = Math.floor(Math.random() * 
 $('shuffle').addEventListener('click', () => { shuf = Math.floor(Math.random() * 90000) + 10000; void draw(); });
 // ---- 自分の画像を足す：選ぶ → 背景除去のしかた → 名前 → 追加 ----
 /** 選んだだけで、まだ足していない画像 */
-let ownFiles: File[] = [], ownBusy = false;
+let ownFiles: File[] = [];
 function syncOwn(): void {
   const n = ownFiles.length;
   $('own-picked').textContent = n ? `${n}枚選んだ：${ownFiles.slice(0, 3).map((f) => f.name).join('、')}${n > 3 ? ' ほか' : ''}` : 'まだ選んでいない。まとめて入れたい画像は、一度に複数選ぶ。';
@@ -355,11 +371,11 @@ $('ownadd').addEventListener('click', async () => {
   let added = 0, failed = '';
   const kind = $('ownkind').value as CutKind;
   for (const f of files) {
-    setStatus(kind === 'asis' ? `読んでいる… ${added + 1}/${files.length}` : `背景を除いている… ${added + 1}/${files.length}（最初の1枚はモデルを読むので時間がかかる）`);
-    await new Promise((r) => setTimeout(r, 20)); // 文言を先に画面へ出す
+    setBusy(kind === 'asis' ? `画像を読んでいる… ${added + 1}/${files.length}` : `背景を除いている… ${added + 1}/${files.length}${added ? '' : '（最初の1枚はモデルを読むので時間がかかる）'}`);
+    await paintNow(); // 文言を先に画面へ出す
     try { all.push(await addOwnImage(f, name, kind)); added++; } catch (e) { failed = `読めなかった: ${f.name}（${e instanceof Error ? e.message : e}）`; console.error(e); }
   }
-  ownBusy = false;
+  ownBusy = false; setBusy(null);
   if (failed) setStatus(failed);
   if (!added) { syncOwn(); return; }
   ownFiles = []; $('own').value = ''; nameBox.value = ''; syncOwn(); // 次のセットのために空に戻す。背景除去のしかたは選んだまま残す
@@ -369,15 +385,22 @@ $('ownadd').addEventListener('click', async () => {
 });
 $('showsrc').addEventListener('click', () => { showSources = !showSources; $('showsrc').setAttribute('aria-pressed', String(showSources)); void draw(); });
 $('save').addEventListener('click', async () => {
-  setStatus('高解像度で描いている…');
-  await new Promise((r) => setTimeout(r, 30));
-  const c = await produce(exportLong(), false);
-  c.toBlob((blob) => {
-    if (!blob) { setStatus('画像を作れなかった。'); return; }
-    const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
-    a.download = `anyflage-${$('compare').value ? 'compare-' : ''}${seed}.png`; a.click();
-    setStatus(`保存した。${c.width}×${c.height} px`);
-  }, 'image/png');
+  if (exporting) return;
+  const btn = $('save'), [ew, eh] = dims(exportLong());
+  exporting = true; btn.disabled = true; btn.textContent = '書き出している…';
+  setStatus(''); setBusy(`書き出している…（${ew}×${eh} px。数秒かかる）`);
+  await paintNow();
+  const done = (msg: string): void => { exporting = false; btn.disabled = false; btn.textContent = 'PNGを保存'; setBusy(null); setStatus(msg); };
+  try {
+    const c = await produce(exportLong(), false);
+    setBusy('ファイルにしている…'); await paintNow();
+    c.toBlob((blob) => {
+      if (!blob) { done('画像を作れなかった。'); return; }
+      const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+      a.download = `anyflage-${$('compare').value ? 'compare-' : ''}${seed}.png`; a.click();
+      done(`保存した。${c.width}×${c.height} px`);
+    }, 'image/png');
+  } catch (e) { done(e instanceof Error ? e.message : String(e)); }
 });
 
 await loadSwatches();

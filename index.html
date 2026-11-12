@@ -12,6 +12,7 @@
   <section class="stage">
     <div id="viewport" class="viewport" title="ホイールで拡大縮小、ドラッグで移動、ダブルクリックで全体と等倍を切り替え">
       <canvas id="view" width="720" height="720"></canvas>
+      <div id="busy" class="busy" hidden aria-live="polite"><span class="spin" aria-hidden="true"></span><span id="busy-text"></span></div>
     </div>
     <div class="viewbar">
       <div class="zoom" role="group" aria-label="プレビューの拡大縮小">

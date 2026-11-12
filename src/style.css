@@ -5,8 +5,17 @@
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.5 "Hiragino Sans", "Zen Kaku Gothic New", system-ui, sans-serif; }
 main { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 16px; padding: 16px; align-items: start; }
-.stage { position: sticky; top: 16px; min-width: 0; }
-.stage canvas { display: block; max-width: 100%; max-height: calc(100vh - 72px); margin: 0 auto; background: var(--panel); }
+.stage { position: sticky; top: 16px; min-width: 0; height: calc(100vh - 32px); min-height: 320px; display: flex; flex-direction: column; gap: 8px; }
+/* プレビューの枠。絵は左上を基準に置き、transform で拡大縮小と移動をする */
+.viewport { flex: 1; min-height: 0; position: relative; overflow: hidden; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; touch-action: none; user-select: none; }
+.viewport.pannable { cursor: grab; }
+.viewport.dragging { cursor: grabbing; }
+.viewport canvas { position: absolute; left: 0; top: 0; display: block; transform-origin: 0 0; }
+.viewbar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.zoom { display: flex; align-items: center; gap: 4px; }
+.zoom button { width: auto; min-width: 32px; padding: 4px 8px; }
+.zoom output { min-width: 48px; text-align: center; font-size: 12px; color: var(--dim); font-variant-numeric: tabular-nums; }
+.viewbar .stats { flex: 1; margin: 0; text-align: right; }
 .stats { margin: 8px 0 0; color: var(--dim); font-size: 12px; text-align: center; min-height: 1.5em; }
 .sheet { display: grid; gap: 12px; }
 h1 { margin: 0; font-size: 20px; letter-spacing: .04em; }
@@ -29,10 +38,29 @@ button.primary { background: var(--ink); color: var(--bg); font-weight: 700; pad
 .check input { accent-color: var(--accent); }
 @media (max-width: 760px) {
   main { grid-template-columns: 1fr; }
-  .stage { position: static; }
+  .stage { position: static; height: 70vh; }
 }
 .note { margin: 0; font-size: 12px; color: var(--dim); line-height: 1.6; }
 .file { display: block; font-size: 12px; color: var(--dim); line-height: 1.6; }
 .file input { display: block; margin-top: 4px; max-width: 100%; color: inherit; }
 .own { display: grid; gap: 6px; }
 .file input[type="text"] { width: 100%; box-sizing: border-box; padding: 6px 8px; background: transparent; border: 1px solid var(--line, #3a3d33); border-radius: 6px; font: inherit; }
+.own { border-top: 1px solid var(--line); padding-top: 8px; }
+.own-title { margin: 0; font-size: 13px; font-weight: 700; }
+.steps { list-style: none; counter-reset: step; margin: 0; padding: 0; display: grid; gap: 10px; }
+.steps > li { counter-increment: step; display: grid; gap: 4px; padding-left: 28px; position: relative; min-width: 0; }
+.steps > li::before { content: counter(step); position: absolute; left: 0; top: 0; width: 20px; height: 20px; border-radius: 50%; background: var(--accent); color: var(--bg); font-size: 12px; font-weight: 700; display: grid; place-items: center; }
+.steps label { font-size: 13px; }
+.steps input[type="file"] { max-width: 100%; font-size: 12px; color: var(--dim); }
+.steps input[type="text"] { width: 100%; box-sizing: border-box; padding: 6px 8px; background: var(--panel); color: var(--ink); border: 1px solid var(--line); border-radius: 4px; font: inherit; }
+button:disabled { opacity: 0.45; cursor: default; }
+
+/* 画面の流れ：1 画像セット → 2 迷彩 → 3 調整 → 4 出力 */
+.stage-box > legend { font-size: 14px; font-weight: 700; color: var(--ink); display: flex; align-items: center; gap: 8px; padding: 0 6px; }
+.num { width: 22px; height: 22px; border-radius: 50%; background: var(--accent); color: var(--bg); font-size: 13px; font-weight: 700; display: inline-grid; place-items: center; flex: none; }
+.more { border-top: 1px solid var(--line); padding-top: 8px; }
+.more > summary { cursor: pointer; font-size: 13px; color: var(--dim); list-style-position: inside; }
+.more[open] > summary { color: var(--ink); margin-bottom: 8px; }
+.more[open] { display: grid; gap: 8px; }
+.pair { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.row > select { margin-top: 4px; }

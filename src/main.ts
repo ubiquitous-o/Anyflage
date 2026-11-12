@@ -29,7 +29,6 @@ const LABELS: Record<Method, string> = {
   areaharm: '輪郭は面積・内側は調和', diffuse: '密度拡散', energy: '歪みエネルギー最小', blend: '単純に混ぜる', carve: '形にカービング',
 };
 const TILES: Record<string, Method[]> = {
-  '6': ['harmonic', 'area', 'areaharm', 'diffuse', 'energy', 'blend'],
   '10': ['radial', 'harmonic', 'elastic', 'area', 'contour', 'areaharm', 'diffuse', 'energy', 'blend', 'carve'],
 };
 const HYBRID: Method[] = ['areaharm', 'diffuse', 'energy', 'blend'];
@@ -188,6 +187,13 @@ async function renderSources(): Promise<HTMLCanvasElement> {
   return c;
 }
 
+/** n 枚を並べるときの列の数。プレビューの枠の形に合わせ、1枚がいちばん大きく見える並べ方を選ぶ */
+function bestCols(n: number): number {
+  const vp = document.getElementById('viewport'), vw = vp?.clientWidth || 1, vh = vp?.clientHeight || 1, [tw, th] = dims(100);
+  let best = 1, bs = 0;
+  for (let c = 1; c <= n; c++) { const r = Math.ceil(n / c), sc = Math.min(vw / (c * tw), vh / (r * (th + 6))); if (sc > bs) { bs = sc; best = c; } }
+  return best;
+}
 async function produce(longEdge: number, reuse: boolean): Promise<HTMLCanvasElement> {
   if (showSources) return renderSources();
   const src = await sources(), cmp = $('compare').value;
@@ -197,8 +203,8 @@ async function produce(longEdge: number, reuse: boolean): Promise<HTMLCanvasElem
     g.putImageData(renderOne(W, H, src, p, reuse), 0, 0); g.putImageData(renderOriginals(W, H, src, p, reuse), W + 8, 0);
     return c;
   }
-  if (cmp === 'patterns') return renderSheet(Math.round(longEdge / 3), PATTERNS.length > 20 ? 6 : 4, PATTERNS.map((pt) => ({ label: pt.name, p: params(pt.id) })), src, false);
-  if (cmp) { const p = params(); return renderSheet(Math.round(longEdge / (cmp === '10' ? 2.5 : 3)), cmp === '10' ? 5 : 2, TILES[cmp].map((m) => ({ label: LABELS[m], p: { ...p, method: m } })), src, reuse); }
+  if (cmp === 'patterns') return renderSheet(Math.round(longEdge / 3), bestCols(PATTERNS.length), PATTERNS.map((pt) => ({ label: pt.name, p: params(pt.id) })), src, false);
+  if (cmp) { const p = params(); return renderSheet(Math.round(longEdge / 2.5), bestCols(TILES[cmp].length), TILES[cmp].map((m) => ({ label: LABELS[m], p: { ...p, method: m } })), src, reuse); }
   const [W, H] = dims(longEdge), c = document.createElement('canvas'); c.width = W; c.height = H;
   c.getContext('2d')!.putImageData(renderOne(W, H, src, params(), reuse), 0, 0);
   return c;
@@ -212,7 +218,9 @@ async function draw(): Promise<void> {
   try {
     const c = await produce($('compare').value ? 1080 : PREVIEW, true);
     if (mine !== token) return;
+    const resized = view.width !== c.width || view.height !== c.height;
     view.width = c.width; view.height = c.height; ctx.drawImage(c, 0, 0);
+    if (resized) layoutView(); // 絵の大きさが変わったら、置き方を合わせ直す
     const n = chosen().length;
     $('s-info').textContent = showSources ? `素材 ${n}枚` : `シード ${seed}・ブロブ ${camo ? camo.comps.count : 0}・素材 ${n}枚・${Math.round(performance.now() - t0)}ms`;
     setStatus(all.length ? (n ? '' : '種類を1つ選んで。') : '素材がまだない。「自分の画像を足す」から入れて。');
@@ -224,6 +232,7 @@ async function draw(): Promise<void> {
 
 function drawChips(): void {
   $('empty').hidden = all.length > 0;
+  if (!all.length) $<HTMLDetailsElement>('own-box').open = true; // 画像セットがないときは、足す手順を開いておく
   const box = $<HTMLDivElement>('groups'); box.textContent = '';
   for (const gname of groups) {
     const b = document.createElement('button'); b.type = 'button'; b.textContent = gname;
@@ -235,7 +244,7 @@ function drawChips(): void {
 }
 function syncUi(): void {
   for (const id of SLIDERS) $(`o-${id}`).textContent = id === 'per' ? `${$(id).value}枚` : id === 'softlim' ? `${$(id).value}升` : `${$(id).value}%`;
-  const m = $('method').value as Method, cv = $('compare').value, cmp = cv === '6' || cv === '10';
+  const m = $('method').value as Method, cv = $('compare').value, cmp = cv === '10';
   $('method').disabled = cmp; $('pattern').disabled = cv === 'patterns';
   $('pattern-note').textContent = patternById($('pattern').value).note;
   $('softlim').disabled = !$('soften').checked;
@@ -244,6 +253,48 @@ function syncUi(): void {
   $('mix').disabled = !cmp && !HYBRID.includes(m);
   $('imp').disabled = !cmp && !['area', 'areaharm', 'blend'].includes(m);
 }
+
+// ---- プレビューの拡大縮小と移動 ----
+// 絵は枠（viewport）の中に置く。fitted のあいだは、枠に全体が収まる大きさに合わせ続ける。
+// 拡大縮小や移動をすると fitted を外し、そのままの倍率と位置を保つ。
+const viewport = $<HTMLDivElement>('viewport');
+let zoom = 1, panX = 0, panY = 0, fitted = true;
+function applyView(): void {
+  const vw = viewport.clientWidth, vh = viewport.clientHeight, w = view.width * zoom, h = view.height * zoom;
+  // 絵が枠より小さい向きは中央に置く。大きい向きは、絵の端が枠の端より内側に入らないようにする
+  panX = w <= vw ? (vw - w) / 2 : Math.min(0, Math.max(vw - w, panX));
+  panY = h <= vh ? (vh - h) / 2 : Math.min(0, Math.max(vh - h, panY));
+  view.style.transform = `translate(${panX}px, ${panY}px) scale(${zoom})`;
+  $('zoom-val').textContent = `${Math.round(zoom * 100)}%`;
+  viewport.classList.toggle('pannable', w > vw || h > vh);
+}
+function fitZoom(): number { return Math.min(viewport.clientWidth / view.width, viewport.clientHeight / view.height) || 1; }
+function layoutView(): void { if (fitted) zoom = fitZoom(); applyView(); }
+/** 枠の中の点 (cx, cy) を動かさずに、倍率を z にする */
+function zoomAt(z: number, cx: number, cy: number): void {
+  z = Math.min(8, Math.max(Math.min(0.1, fitZoom()), z));
+  panX = cx - (cx - panX) * z / zoom; panY = cy - (cy - panY) * z / zoom; zoom = z; fitted = false; applyView();
+}
+const zoomCentre = (f: number): void => zoomAt(zoom * f, viewport.clientWidth / 2, viewport.clientHeight / 2);
+$('zoom-in').addEventListener('click', () => zoomCentre(1.25));
+$('zoom-out').addEventListener('click', () => zoomCentre(1 / 1.25));
+$('zoom-fit').addEventListener('click', () => { fitted = true; layoutView(); });
+$('zoom-100').addEventListener('click', () => zoomAt(1, viewport.clientWidth / 2, viewport.clientHeight / 2));
+viewport.addEventListener('wheel', (ev) => {
+  ev.preventDefault();
+  const r = viewport.getBoundingClientRect();
+  zoomAt(zoom * Math.exp(-ev.deltaY * (ev.ctrlKey ? 0.01 : 0.0015)), ev.clientX - r.left, ev.clientY - r.top);
+}, { passive: false });
+viewport.addEventListener('dblclick', (ev) => {
+  const r = viewport.getBoundingClientRect();
+  if (fitted || Math.abs(zoom - fitZoom()) < 0.001) zoomAt(1, ev.clientX - r.left, ev.clientY - r.top); else { fitted = true; layoutView(); }
+});
+let drag: { x: number; y: number; px: number; py: number } | null = null;
+viewport.addEventListener('pointerdown', (ev) => { if (ev.button !== 0) return; drag = { x: ev.clientX, y: ev.clientY, px: panX, py: panY }; viewport.setPointerCapture(ev.pointerId); viewport.classList.add('dragging'); });
+viewport.addEventListener('pointermove', (ev) => { if (!drag) return; panX = drag.px + ev.clientX - drag.x; panY = drag.py + ev.clientY - drag.y; fitted = false; applyView(); });
+const endDrag = (): void => { drag = null; viewport.classList.remove('dragging'); };
+viewport.addEventListener('pointerup', endDrag); viewport.addEventListener('pointercancel', endDrag);
+new ResizeObserver(() => layoutView()).observe(viewport);
 
 // ---- URL との行き来 ----
 const FIELDS = [...SLIDERS, 'method', 'compare', 'assign', 'ratio', 'palette', 'pattern', 'split'];
@@ -274,6 +325,7 @@ function readUrl(): void {
   if (q.get('seed')) seed = +q.get('seed')! || seed;
   shuf = +(q.get('shuf') || 0) || 0;
   showSources = q.get('sources') === '1';
+  if (q.get('compare') === '6') $('compare').value = '10'; // 「6方式を並べる」はなくした。古い URL は「はめ方を比べる」に読み替える
   const want = q.get('groups');
   for (const gname of want !== null ? want.split(',') : groups.slice(0, 2)) if (groups.includes(gname)) picked.add(gname);
 }
@@ -281,10 +333,21 @@ function readUrl(): void {
 $('sheet').addEventListener('input', (ev) => { const id = (ev.target as HTMLElement).id; if (id === 'ownname' || id === 'own' || id === 'ownkind') return; syncUi(); void draw(); }); // 名前の入力とファイル選びでは描き直さない
 $('reseed').addEventListener('click', () => { seed = Math.floor(Math.random() * 90000) + 10000; void draw(); });
 $('shuffle').addEventListener('click', () => { shuf = Math.floor(Math.random() * 90000) + 10000; void draw(); });
-$<HTMLInputElement>('own').addEventListener('change', async (ev) => { // 手元の画像を素材に足す
-  const input = ev.target as HTMLInputElement, files = [...(input.files || [])];
-  if (!files.length) return;
-  // 1回のアップが1つのセット。名前は入力欄から。空なら 001、002… の連番。同じ名前がすでにあれば番号を足して別のセットにする
+// ---- 自分の画像を足す：選ぶ → 背景除去のしかた → 名前 → 追加 ----
+/** 選んだだけで、まだ足していない画像 */
+let ownFiles: File[] = [], ownBusy = false;
+function syncOwn(): void {
+  const n = ownFiles.length;
+  $('own-picked').textContent = n ? `${n}枚選んだ：${ownFiles.slice(0, 3).map((f) => f.name).join('、')}${n > 3 ? ' ほか' : ''}` : 'まだ選んでいない。まとめて入れたい画像は、一度に複数選ぶ。';
+  $('ownadd').disabled = !n || ownBusy;
+  $('ownadd').textContent = ownBusy ? '追加している…' : n ? `${n}枚を追加する` : '追加する';
+}
+$('own').addEventListener('change', () => { ownFiles = [...($('own').files || [])]; syncOwn(); });
+$('ownadd').addEventListener('click', async () => {
+  const files = ownFiles;
+  if (!files.length || ownBusy) return;
+  ownBusy = true; syncOwn();
+  // 1回の追加が1つのセット。名前は入力欄から。空なら 001、002… の連番。同じ名前がすでにあれば番号を足して別のセットにする
   const nameBox = $('ownname'), want = nameBox.value.trim();
   let name = want, k = 1;
   if (!name) { do name = String(k++).padStart(3, '0'); while (groups.includes(name)); }
@@ -296,10 +359,10 @@ $<HTMLInputElement>('own').addEventListener('change', async (ev) => { // 手元�
     await new Promise((r) => setTimeout(r, 20)); // 文言を先に画面へ出す
     try { all.push(await addOwnImage(f, name, kind)); added++; } catch (e) { failed = `読めなかった: ${f.name}（${e instanceof Error ? e.message : e}）`; console.error(e); }
   }
+  ownBusy = false;
   if (failed) setStatus(failed);
-  input.value = '';
-  if (!added) return;
-  nameBox.value = '';
+  if (!added) { syncOwn(); return; }
+  ownFiles = []; $('own').value = ''; nameBox.value = ''; syncOwn(); // 次のセットのために空に戻す。背景除去のしかたは選んだまま残す
   groups.push(name); picked.add(name);
   if (+$('per').value < added) $('per').value = String(Math.min(+$('per').max, added)); // 足した枚数ぶんは使う
   drawChips(); syncUi(); void draw();

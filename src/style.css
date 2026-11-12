@@ -1,0 +1,36 @@
+:root {
+  --bg: #14170f; --panel: #1d2117; --line: #343a2a; --ink: #f3f4ea; --dim: #a5ab94; --accent: #c2b280;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.5 "Hiragino Sans", "Zen Kaku Gothic New", system-ui, sans-serif; }
+main { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 16px; padding: 16px; align-items: start; }
+.stage { position: sticky; top: 16px; min-width: 0; }
+.stage canvas { display: block; max-width: 100%; max-height: calc(100vh - 72px); margin: 0 auto; background: var(--panel); }
+.stats { margin: 8px 0 0; color: var(--dim); font-size: 12px; text-align: center; min-height: 1.5em; }
+.sheet { display: grid; gap: 12px; }
+h1 { margin: 0; font-size: 20px; letter-spacing: .04em; }
+h1 small { font-size: 12px; font-weight: 400; color: var(--dim); margin-left: 6px; }
+fieldset { border: 1px solid var(--line); border-radius: 6px; margin: 0; padding: 10px 12px 12px; display: grid; gap: 8px; min-width: 0; }
+legend { padding: 0 6px; color: var(--accent); font-size: 12px; }
+.row { display: grid; gap: 2px; }
+.row label { display: flex; justify-content: space-between; font-size: 12px; color: var(--dim); }
+.pair { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+input[type=range] { width: 100%; accent-color: var(--accent); }
+input:disabled, select:disabled { opacity: .35; }
+select, button { font: inherit; color: var(--ink); background: var(--panel); border: 1px solid var(--line); border-radius: 4px; padding: 6px 8px; width: 100%; }
+button { cursor: pointer; }
+button[aria-pressed=true] { background: var(--accent); color: var(--bg); border-color: var(--accent); }
+button.primary { background: var(--ink); color: var(--bg); font-weight: 700; padding: 10px; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chips button { width: auto; padding: 4px 10px; border-radius: 999px; font-size: 13px; }
+.chips small { opacity: .7; margin-left: 4px; }
+.check { display: flex; gap: 6px; align-items: center; font-size: 13px; }
+.check input { accent-color: var(--accent); }
+@media (max-width: 760px) {
+  main { grid-template-columns: 1fr; }
+  .stage { position: static; }
+}
+.note { margin: 0; font-size: 12px; color: var(--dim); line-height: 1.6; }
+.file { display: block; font-size: 12px; color: var(--dim); line-height: 1.6; }
+.file input { display: block; margin-top: 4px; max-width: 100%; color: inherit; }

@@ -1,0 +1,7 @@
+samples/
+node_modules/
+dist/
+.DS_Store
+docs/
+CLAUDE.md
+prototype/

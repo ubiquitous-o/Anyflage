@@ -1,0 +1,286 @@
+[
+ {
+  "id": "m81",
+  "name": "M81 ウッドランド（実物の形）",
+  "note": "米陸軍の見本。1981年。茶が多いほうの ERDL を6割拡大した4色。",
+  "w": 640,
+  "h": 548,
+  "span": 3.5,
+  "colors": [
+   "#9a8e6f",
+   "#4d5f49",
+   "#5f5345",
+   "#3c403d"
+  ],
+  "share": [
+   24.2,
+   28.3,
+   31,
+   16.5
+  ],
+  "source": {
+   "title": "\"M81\" U.S. woodland camouflage pattern swatch.png",
+   "page": "https://commons.wikimedia.org/wiki/File:%22M81%22_U.S._woodland_camouflage_pattern_swatch.png",
+   "license": "Public domain",
+   "author": "U.S. Army"
+  }
+ },
+ {
+  "id": "erdl-green",
+  "name": "ERDL 緑優勢（実物の形）",
+  "note": "米陸軍 ERDL の「低地」版。1948年設計、1967年からベトナムで支給。M81 の元。",
+  "w": 640,
+  "h": 358,
+  "span": 3,
+  "colors": [
+   "#74865b",
+   "#5b5946",
+   "#4b5e48",
+   "#3c403d"
+  ],
+  "share": [
+   21.5,
+   32.7,
+   28.8,
+   17.1
+  ],
+  "source": {
+   "title": "Green-dominant \"lowland\" ERDL camouflage pattern swatch.svg",
+   "page": "https://commons.wikimedia.org/wiki/File:Green-dominant_%22lowland%22_ERDL_camouflage_pattern_swatch.svg",
+   "license": "Public domain",
+   "author": "ERDL"
+  }
+ },
+ {
+  "id": "erdl-brown",
+  "name": "ERDL 茶優勢（実物の形）",
+  "note": "米陸軍 ERDL の「高地」版。これを6割拡大したのが M81。",
+  "w": 640,
+  "h": 358,
+  "span": 3,
+  "colors": [
+   "#988c6d",
+   "#4d5f49",
+   "#5f5446",
+   "#3c403e"
+  ],
+  "share": [
+   20.3,
+   28.4,
+   34.5,
+   16.8
+  ],
+  "source": {
+   "title": "Brown-dominant \"highland\" ERDL camouflage pattern swatch.svg",
+   "page": "https://commons.wikimedia.org/wiki/File:Brown-dominant_%22highland%22_ERDL_camouflage_pattern_swatch.svg",
+   "license": "Public domain",
+   "author": "ERDL"
+  }
+ },
+ {
+  "id": "lizard",
+  "name": "リザード（仏、実物の形）",
+  "note": "仏 1950年代。緑と茶の刷毛の縞を、地を広く残して重ねる。タイガーストライプの元。",
+  "w": 640,
+  "h": 286,
+  "span": 3.5,
+  "colors": [
+   "#b4ac87",
+   "#71734a",
+   "#87634a"
+  ],
+  "share": [
+   24.8,
+   23.6,
+   51.6
+  ],
+  "source": {
+   "title": "French Lizard Pattern Swatch from the 1950s.png",
+   "page": "https://commons.wikimedia.org/wiki/File:French_Lizard_Pattern_Swatch_from_the_1950s.png",
+   "license": "CC0",
+   "author": "VoltigeurFR"
+  }
+ },
+ {
+  "id": "emr",
+  "name": "EMR デジタルフローラ（露、実物の形）",
+  "note": "ロシア 2008年。淡い緑の地に黒・茶・濃緑の升目。",
+  "w": 640,
+  "h": 795,
+  "span": 2.5,
+  "colors": [
+   "#75764c",
+   "#454f38",
+   "#534234",
+   "#353332"
+  ],
+  "share": [
+   47.2,
+   38.8,
+   8.6,
+   5.3
+  ],
+  "source": {
+   "title": "Russian Armed Forces EMR patten.png",
+   "page": "https://commons.wikimedia.org/wiki/File:Russian_Armed_Forces_EMR_patten.png",
+   "license": "CC0",
+   "author": "Grieferus"
+  }
+ },
+ {
+  "id": "dpm",
+  "name": "DPM（英、実物の形）",
+  "note": "英 Combat 95。砂色の地に緑・茶・黒の刷毛の跡。布の写真から起こした。",
+  "w": 640,
+  "h": 471,
+  "span": 4,
+  "colors": [
+   "#cd9d54",
+   "#5d5f21",
+   "#502c1d",
+   "#282321"
+  ],
+  "share": [
+   18.5,
+   31.2,
+   29.8,
+   20.5
+  ],
+  "source": {
+   "title": "DPM Combat 95 Camouflage Material MOD 45149982.jpg",
+   "page": "https://commons.wikimedia.org/wiki/File:DPM_Combat_95_Camouflage_Material_MOD_45149982.jpg",
+   "license": "OGL v1.0",
+   "author": "Cpl Adrian Harlen RLC"
+  }
+ },
+ {
+  "id": "flecktarn",
+  "name": "フレックターン（独、実物の形）",
+  "note": "独 1990年採用。5色の点の群れ。布の写真から起こした。",
+  "w": 512,
+  "h": 384,
+  "span": 3,
+  "colors": [
+   "#be946a",
+   "#a98e6a",
+   "#8c947b",
+   "#998d6b",
+   "#686f73"
+  ],
+  "share": [
+   10.1,
+   3,
+   44.9,
+   3.2,
+   38.7
+  ],
+  "source": {
+   "title": "Flecktarn.jpg",
+   "page": "https://commons.wikimedia.org/wiki/File:Flecktarn.jpg",
+   "license": "CC BY-SA 3.0",
+   "author": "pixelFire"
+  }
+ },
+ {
+  "id": "splitter31",
+  "name": "スプリッター31（独、実物の形）",
+  "note": "独 1931年。角ばった多角形と「雨」の線。布のスキャンから起こした。",
+  "w": 640,
+  "h": 871,
+  "span": 4,
+  "colors": [
+   "#cfc1a1",
+   "#506e3f",
+   "#754d35",
+   "#44351e"
+  ],
+  "share": [
+   53.6,
+   8.3,
+   33.9,
+   4.2
+  ],
+  "source": {
+   "title": "Buntfarbenmuster 31 (Splittertarn) (cropped).jpg",
+   "page": "https://commons.wikimedia.org/wiki/File:Buntfarbenmuster_31_(Splittertarn)_(cropped).jpg",
+   "license": "CC BY-SA 3.0",
+   "author": "Mediatus"
+  }
+ },
+ {
+  "id": "klmk",
+  "name": "ベリョースカ KLMK（ソ連、実物の形）",
+  "note": "ソ連 1968年ごろ。縁が階段状の葉形の斑。布の写真から起こした。",
+  "w": 640,
+  "h": 480,
+  "span": 3.5,
+  "colors": [
+   "#aeb3b3",
+   "#5b7558"
+  ],
+  "share": [
+   21.4,
+   78.6
+  ],
+  "source": {
+   "title": "Камуфляж Берёзка.jpg",
+   "page": "https://commons.wikimedia.org/wiki/File:%D0%9A%D0%B0%D0%BC%D1%83%D1%84%D0%BB%D1%8F%D0%B6_%D0%91%D0%B5%D1%80%D1%91%D0%B7%D0%BA%D0%B0.jpg",
+   "license": "CC BY-SA 4.0",
+   "author": "GTRus"
+  }
+ },
+ {
+  "id": "frogskin",
+  "name": "フロッグスキン（米、実物の形）",
+  "note": "米 1942年。丸い斑5色。布の写真から起こした。",
+  "w": 610,
+  "h": 394,
+  "span": 3,
+  "colors": [
+   "#8a9875",
+   "#958c6e",
+   "#857556",
+   "#586b46",
+   "#735135"
+  ],
+  "share": [
+   45.1,
+   6.3,
+   1.9,
+   16.3,
+   30.3
+  ],
+  "source": {
+   "title": "Frog Skin camouflage pattern.jpg",
+   "page": "https://commons.wikimedia.org/wiki/File:Frog_Skin_camouflage_pattern.jpg",
+   "license": "CC BY-SA 3.0",
+   "author": "IQ125"
+  }
+ },
+ {
+  "id": "jgsdf2",
+  "name": "陸自迷彩2型（実物の形）",
+  "note": "陸上自衛隊。カーキの地に草緑・茶・黒の点。布の写真から起こした。",
+  "w": 640,
+  "h": 491,
+  "span": 3,
+  "colors": [
+   "#928e81",
+   "#5e775d",
+   "#765450",
+   "#48474e"
+  ],
+  "share": [
+   22.4,
+   50.5,
+   17.7,
+   9.3
+  ],
+  "source": {
+   "title": "迷彩服2型の迷彩パターン.jpg",
+   "page": "https://commons.wikimedia.org/wiki/File:%E8%BF%B7%E5%BD%A9%E6%9C%8D2%E5%9E%8B%E3%81%AE%E8%BF%B7%E5%BD%A9%E3%83%91%E3%82%BF%E3%83%BC%E3%83%B3.jpg",
+   "license": "CC BY 3.0",
+   "author": "Crescent moon at Japanese Wikipedia"
+  }
+ }
+]

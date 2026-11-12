@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Anyflage</title>
+<link rel="stylesheet" href="/src/style.css">
+</head>
+<body>
+<main>
+  <section class="stage">
+    <canvas id="view" width="720" height="720"></canvas>
+    <p class="stats"><span id="s-info"></span> <span id="status" role="status"></span></p>
+  </section>
+  <form id="sheet" class="sheet" onsubmit="return false">
+    <h1>Anyflage <small>写真テスト</small></h1>
+
+    <fieldset>
+      <legend>押し込むもの</legend>
+      <div id="groups" class="chips"></div>
+      <div class="row"><label for="per">1種類あたりの枚数 <output id="o-per"></output></label><input type="range" id="per" min="1" max="24" value="6"></div>
+      <button type="button" id="shuffle">素材を入れ替える（シャッフル）</button>
+      <label class="file">自分の画像を足す（透明のある PNG がおすすめ）<input type="file" id="own" accept="image/*" multiple></label>
+      <p id="empty" class="note" hidden>素材がまだない。上から画像を足すと、迷彩のブロブに押し込める。画像はこのブラウザの中だけで使う。どこにも送らない。</p>
+      <button type="button" id="showsrc" aria-pressed="false">素材の切り抜きを見る</button>
+    </fieldset>
+
+    <fieldset>
+      <legend>はめ方</legend>
+      <select id="method">
+        <option value="radial">放射（重心から線を伸ばす）</option>
+        <option value="harmonic">調和写像（ゴム膜）</option>
+        <option value="elastic">詰め物（弾性体）</option>
+        <option value="area">面積均等（風船）</option>
+        <option value="contour">輪郭追従（皮を貼る）</option>
+        <option value="areaharm" selected>輪郭は面積・内側は調和</option>
+        <option value="diffuse">密度拡散（圧力でならす）</option>
+        <option value="energy">歪みエネルギー最小</option>
+        <option value="blend">単純に混ぜる</option>
+        <option value="carve">形にカービング（背景を出さない）</option>
+      </select>
+      <div class="row"><label for="mix">面積寄り <output id="o-mix"></output></label><input type="range" id="mix" min="0" max="100" step="5" value="50"></div>
+      <select id="compare" aria-label="比較表示">
+        <option value="">1方式で表示</option>
+        <option value="6">6方式を並べる（調和・面積・混合4）</option>
+        <option value="10">10方式ぜんぶ並べる</option>
+        <option value="orig">元の素材と並べる（左：押し込み後／右：元）</option>
+        <option value="patterns">柄をぜんぶ並べる</option>
+      </select>
+      <select id="assign" aria-label="割り当て"><option value="random">ブロブごとにランダム</option><option value="apart">隣どうしで同じ素材を避ける</option><option value="layer">色ごとに1種類</option></select>
+    </fieldset>
+
+    <fieldset>
+      <legend>中身に応じた縮小</legend>
+      <div class="row"><label for="carve">シームカービング <output id="o-carve"></output></label><input type="range" id="carve" min="0" max="90" step="10" value="60"></div>
+      <div class="row"><label for="protect">肌色を保護 <output id="o-protect"></output></label><input type="range" id="protect" min="0" max="100" step="10" value="70"></div>
+      <label class="check"><input type="checkbox" id="fitblob" checked> ブロブの縦横に合わせて詰める</label>
+      <label class="check"><input type="checkbox" id="smooth" checked> なめらかに読む（画素の角を出さない）</label>
+      <label class="check"><input type="checkbox" id="soften" checked> カービングの段差をならす（階段を出さない）</label>
+      <div class="row"><label for="softlim">ならす飛びの上限 <output id="o-softlim"></output></label><input type="range" id="softlim" min="2" max="80" step="2" value="14"></div>
+      <label class="check"><input type="checkbox" id="trim" checked> 素材の細い所を落とす（端の筋を減らす）</label>
+      <div class="row"><label for="imp">細部を大きく <output id="o-imp"></output></label><input type="range" id="imp" min="0" max="100" step="10" value="0"></div>
+    </fieldset>
+
+    <fieldset>
+      <legend>迷彩の形</legend>
+      <select id="pattern" aria-label="柄"></select>
+      <p id="pattern-note" class="note"></p>
+      <div class="pair">
+        <button type="button" id="reseed">形を作り直す</button>
+        <select id="ratio" aria-label="比率">
+          <option value="1:1">1:1</option><option value="4:5">4:5 縦</option><option value="3:4">3:4</option><option value="16:9">16:9 横</option>
+        </select>
+      </div>
+      <div class="row"><label for="size">ブロブの大きさ <output id="o-size"></output></label><input type="range" id="size" min="6" max="100" value="17"></div>
+      <select id="split" aria-label="大きすぎるブロブの切り方"><option value="wavy">大きいブロブは、うねった線で切る</option><option value="cell">大きいブロブは、直線で切る（試作と同じ）</option><option value="none">大きいブロブを切らない</option></select>
+      <div class="row"><label for="neck">くびれでブロブを切る <output id="o-neck"></output></label><input type="range" id="neck" min="0" max="95" step="5" value="50"></div>
+      <div class="row"><label for="notch">えぐれでブロブを切る <output id="o-notch"></output></label><input type="range" id="notch" min="0" max="100" step="5" value="50"></div>
+      <div class="row"><label for="flat">小さいブロブは塗るだけ <output id="o-flat"></output></label><input type="range" id="flat" min="0" max="300" step="10" value="100"></div>
+      <label class="check"><input type="checkbox" id="soft" checked> ブロブの縁をなじませる（画素の段々を消す）</label>
+      <label class="check"><input type="checkbox" id="edges"> ブロブの境目を線で見る</label>
+      <div class="row"><label for="wobble">輪郭のうねり <output id="o-wobble"></output></label><input type="range" id="wobble" min="0" max="100" value="55"></div>
+    </fieldset>
+
+    <fieldset>
+      <legend>歪み</legend>
+      <div class="row"><label for="squeeze">締めつけ <output id="o-squeeze"></output></label><input type="range" id="squeeze" min="0" max="100" value="50"></div>
+      <div class="row"><label for="fit">形に押し込む <output id="o-fit"></output></label><input type="range" id="fit" min="0" max="100" value="100"></div>
+      <div class="row"><label for="dist">ゆらぎ <output id="o-dist"></output></label><input type="range" id="dist" min="0" max="100" value="15"></div>
+      <div class="row"><label for="rot">回転のばらつき <output id="o-rot"></output></label><input type="range" id="rot" min="0" max="100" value="12"></div>
+    </fieldset>
+
+    <fieldset>
+      <legend>色</legend>
+      <select id="palette">
+        <option value="native">柄の本来の色</option>
+        <option value="woodland">ウッドランド</option><option value="desert">デザート</option>
+        <option value="urban">アーバン</option><option value="navy">ネイビー</option><option value="pop">ポップ</option>
+      </select>
+      <div class="row"><label for="tint">迷彩色の強さ <output id="o-tint"></output></label><input type="range" id="tint" min="0" max="100" value="40"></div>
+    </fieldset>
+
+    <button type="button" class="primary" id="save">PNGを保存</button>
+  </form>
+</main>
+<script type="module" src="/src/main.ts"></script>
+</body>
+</html>

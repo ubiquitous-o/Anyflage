@@ -1,0 +1,21 @@
+{
+  "name": "anyflage",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "typecheck": "tsc --noEmit",
+    "parity": "node scripts/check-parity.ts",
+    "samples": "node scripts/collect-coco.ts && node scripts/collect-ade.ts && node scripts/collect-pets.ts && node scripts/collect-misc.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "@types/pngjs": "^6.0.5",
+    "jpeg-js": "^0.4.4",
+    "pngjs": "^7.0.0",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.8"
+  }
+}

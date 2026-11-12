@@ -4,6 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
+    "postinstall": "node scripts/copy-vendor.ts",
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "typecheck": "tsc --noEmit",
@@ -17,5 +18,9 @@
     "pngjs": "^7.0.0",
     "typescript": "^7.0.2",
     "vite": "^8.3.8"
+  },
+  "dependencies": {
+    "@mediapipe/tasks-vision": "^1.2.3",
+    "onnxruntime-web": "^1.31.1"
   }
 }

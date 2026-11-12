@@ -4,7 +4,8 @@ import { Kao } from './engine/kao.ts';
 import { PATTERNS, patternById } from './engine/patterns.ts';
 import type { Camo, Method, Params, Picker, Raster, RGB } from './engine/types.ts';
 import { Material } from './material.ts';
-import { addOwnImage, loadCutout, loadManifests, OWN_GROUP } from './samples.ts';
+import { addOwnImage, loadCutout, loadManifests } from './samples.ts';
+import type { CutKind } from './cutout.ts';
 import { loadSwatches } from './swatches.ts';
 import type { Sample } from './samples.ts';
 
@@ -277,15 +278,31 @@ function readUrl(): void {
   for (const gname of want !== null ? want.split(',') : groups.slice(0, 2)) if (groups.includes(gname)) picked.add(gname);
 }
 
-$('sheet').addEventListener('input', () => { syncUi(); void draw(); });
+$('sheet').addEventListener('input', (ev) => { const id = (ev.target as HTMLElement).id; if (id === 'ownname' || id === 'own' || id === 'ownkind') return; syncUi(); void draw(); }); // 名前の入力とファイル選びでは描き直さない
 $('reseed').addEventListener('click', () => { seed = Math.floor(Math.random() * 90000) + 10000; void draw(); });
 $('shuffle').addEventListener('click', () => { shuf = Math.floor(Math.random() * 90000) + 10000; void draw(); });
 $<HTMLInputElement>('own').addEventListener('change', async (ev) => { // 手元の画像を素材に足す
   const input = ev.target as HTMLInputElement, files = [...(input.files || [])];
-  for (const f of files) { try { all.push(await addOwnImage(f)); } catch { setStatus(`読めなかった: ${f.name}`); } }
+  if (!files.length) return;
+  // 1回のアップが1つのセット。名前は入力欄から。空なら 001、002… の連番。同じ名前がすでにあれば番号を足して別のセットにする
+  const nameBox = $('ownname'), want = nameBox.value.trim();
+  let name = want, k = 1;
+  if (!name) { do name = String(k++).padStart(3, '0'); while (groups.includes(name)); }
+  else while (groups.includes(name)) name = `${want} ${++k}`;
+  let added = 0, failed = '';
+  const kind = $('ownkind').value as CutKind;
+  for (const f of files) {
+    setStatus(kind === 'asis' ? `読んでいる… ${added + 1}/${files.length}` : `背景を除いている… ${added + 1}/${files.length}（最初の1枚はモデルを読むので時間がかかる）`);
+    await new Promise((r) => setTimeout(r, 20)); // 文言を先に画面へ出す
+    try { all.push(await addOwnImage(f, name, kind)); added++; } catch (e) { failed = `読めなかった: ${f.name}（${e instanceof Error ? e.message : e}）`; console.error(e); }
+  }
+  if (failed) setStatus(failed);
   input.value = '';
-  if (!groups.includes(OWN_GROUP)) groups.push(OWN_GROUP);
-  picked.add(OWN_GROUP); drawChips(); void draw();
+  if (!added) return;
+  nameBox.value = '';
+  groups.push(name); picked.add(name);
+  if (+$('per').value < added) $('per').value = String(Math.min(+$('per').max, added)); // 足した枚数ぶんは使う
+  drawChips(); syncUi(); void draw();
 });
 $('showsrc').addEventListener('click', () => { showSources = !showSources; $('showsrc').setAttribute('aria-pressed', String(showSources)); void draw(); });
 $('save').addEventListener('click', async () => {

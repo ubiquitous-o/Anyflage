@@ -1,5 +1,7 @@
 // samples/ のテスト素材を読む。画像とマスクから、アルファ付きの切り抜きを作る。
 import type { Raster } from './engine/types.ts';
+import { cutOut } from './cutout.ts';
+import type { CutKind } from './cutout.ts';
 
 /** scripts/lib.ts の Sample と同じ形 */
 export interface Sample {
@@ -17,15 +19,14 @@ const SETS = ['celeba', 'coco', 'pets', 'ade', 'pokemon'];
 const cutouts = new Map<string, Promise<Raster>>();
 /** 置き場所。公開版は /Anyflage/ の下に置かれるので、決め打ちの / から始めない */
 const BASE = import.meta.env.BASE_URL;
-/** 自分で足した画像の種類の名前 */
-export const OWN_GROUP = 'じぶん';
 let ownCount = 0;
 
 /**
- * 手元の画像を素材として足す。透明のある PNG は、透明でない所が切り抜きになる。
- * 透明のない画像（写真など）は、四角のまま素材になる。画像はブラウザの中だけで使い、どこにも送らない。
+ * 手元の画像を素材として足す。kind が asis なら背景除去しない。透明のある PNG は、透明でない所が切り抜きになり、
+ * 透明のない画像（写真など）は四角のまま素材になる。ほかの kind は cutout.ts で背景を除く。
+ * 画像はブラウザの中だけで使い、どこにも送らない。
  */
-export async function addOwnImage(file: File): Promise<Sample> {
+export async function addOwnImage(file: File, group: string, kind: CutKind): Promise<Sample> {
   const url = URL.createObjectURL(file);
   try {
     const img = await loadImage(url), long = Math.max(img.naturalWidth, img.naturalHeight), k = Math.min(1, SRC_MAX / long);
@@ -33,9 +34,9 @@ export async function addOwnImage(file: File): Promise<Sample> {
     const c = document.createElement('canvas'); c.width = w; c.height = h;
     const g = c.getContext('2d', { willReadFrequently: true })!;
     g.drawImage(img, 0, 0, w, h);
-    const id = `own-${++ownCount}`, raster: Raster = { w, h, data: g.getImageData(0, 0, w, h).data };
+    const id = `own-${++ownCount}`, raster: Raster = await cutOut(c, kind);
     cutouts.set(id, Promise.resolve(raster));
-    return { id, set: 'own', group: OWN_GROUP, label: file.name, image: '', mask: null, bbox: [0, 0, w, h], source: '自分で足した画像' };
+    return { id, set: 'own', group, label: file.name, image: '', mask: null, bbox: [0, 0, raster.w, raster.h], source: '自分で足した画像' };
   } finally { URL.revokeObjectURL(url); }
 }
 /** 切り抜きの長辺。元の解像度をなるべく保つ。小さい素材は 512 まで拡大、大きい素材は 1024 まで */

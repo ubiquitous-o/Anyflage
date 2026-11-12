@@ -34,3 +34,5 @@ button.primary { background: var(--ink); color: var(--bg); font-weight: 700; pad
 .note { margin: 0; font-size: 12px; color: var(--dim); line-height: 1.6; }
 .file { display: block; font-size: 12px; color: var(--dim); line-height: 1.6; }
 .file input { display: block; margin-top: 4px; max-width: 100%; color: inherit; }
+.own { display: grid; gap: 6px; }
+.file input[type="text"] { width: 100%; box-sizing: border-box; padding: 6px 8px; background: transparent; border: 1px solid var(--line, #3a3d33); border-radius: 6px; font: inherit; }

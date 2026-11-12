@@ -21,7 +21,19 @@
       <div id="groups" class="chips"></div>
       <div class="row"><label for="per">1種類あたりの枚数 <output id="o-per"></output></label><input type="range" id="per" min="1" max="24" value="6"></div>
       <button type="button" id="shuffle">素材を入れ替える（シャッフル）</button>
-      <label class="file">自分の画像を足す（透明のある PNG がおすすめ）<input type="file" id="own" accept="image/*" multiple></label>
+      <div class="own">
+        <label class="file">セットの名前<input type="text" id="ownname" placeholder="空なら 001、002…" maxlength="20" autocomplete="off"></label>
+        <label class="file">何の画像か（背景除去のしかた）
+          <select id="ownkind">
+            <option value="asis">切り抜き済み（背景除去しない）</option>
+            <option value="face">人の顔だけ</option>
+            <option value="person">人の全身</option>
+            <option value="object">もの・キャラ</option>
+          </select>
+        </label>
+        <label class="file">自分の画像を足す<input type="file" id="own" accept="image/*" multiple></label>
+        <p class="note">選ぶたびに、その名前の新しいセットになる。まとめて入れたい画像は、一度に複数選ぶ。背景除去はこのブラウザの中で計算する。画像はどこにも送らない。</p>
+      </div>
       <p id="empty" class="note" hidden>素材がまだない。上から画像を足すと、迷彩のブロブに押し込める。画像はこのブラウザの中だけで使う。どこにも送らない。</p>
       <button type="button" id="showsrc" aria-pressed="false">素材の切り抜きを見る</button>
     </fieldset>

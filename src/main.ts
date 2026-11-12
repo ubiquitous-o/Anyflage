@@ -16,7 +16,13 @@ const PALETTES: Record<string, string[]> = {
   urban: ['#D5D6D2', '#9A9C98', '#5C5F60', '#232526'], navy: ['#9FB2C4', '#4F6D8C', '#243B5A', '#0F1826'],
   pop: ['#FFD23F', '#EE4266', '#3BCEAC', '#540D6E'],
 };
-const RATIOS: Record<string, [number, number]> = { '1:1': [1, 1], '4:5': [4, 5], '3:4': [3, 4], '16:9': [16, 9] };
+/** 出力の縦横。汎用は比率だけ決め、書き出しは長辺 EXPORT。ig- で始まるものは Instagram の仕様の画素数そのままで書き出す */
+const RATIOS: Record<string, [number, number]> = {
+  '1:1': [1, 1], '3:4': [3, 4], '4:3': [4, 3], '9:16': [9, 16], '16:9': [16, 9], '4:5': [4, 5],
+  'ig-square': [1080, 1080], 'ig-portrait': [1080, 1350], 'ig-tall': [1080, 1440], 'ig-landscape': [1080, 566], 'ig-story': [1080, 1920],
+};
+/** 書き出しの長辺。Instagram 用は仕様の画素数、ほかは EXPORT */
+function exportLong(): number { const k = $('ratio').value, r = RATIOS[k] || RATIOS['1:1']; return k.startsWith('ig-') ? Math.max(r[0], r[1]) : EXPORT; }
 const LABELS: Record<Method, string> = {
   radial: '放射', harmonic: '調和写像', elastic: '詰め物', area: '面積均等', contour: '輪郭追従',
   areaharm: '輪郭は面積・内側は調和', diffuse: '密度拡散', energy: '歪みエネルギー最小', blend: '単純に混ぜる', carve: '形にカービング',
@@ -54,7 +60,7 @@ function colors(patternId: string): RGB[] {
   });
 }
 function dims(longEdge: number): [number, number] {
-  const r = RATIOS[$('ratio').value], m = Math.max(r[0], r[1]);
+  const r = RATIOS[$('ratio').value] || RATIOS['1:1'], m = Math.max(r[0], r[1]);
   return [Math.round(longEdge * r[0] / m), Math.round(longEdge * r[1] / m)];
 }
 function setStatus(t: string): void { $('status').textContent = t; }
@@ -285,7 +291,7 @@ $('showsrc').addEventListener('click', () => { showSources = !showSources; $('sh
 $('save').addEventListener('click', async () => {
   setStatus('高解像度で描いている…');
   await new Promise((r) => setTimeout(r, 30));
-  const c = await produce(EXPORT, false);
+  const c = await produce(exportLong(), false);
   c.toBlob((blob) => {
     if (!blob) { setStatus('画像を作れなかった。'); return; }
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob);

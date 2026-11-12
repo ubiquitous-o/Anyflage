@@ -70,7 +70,19 @@
       <div class="pair">
         <button type="button" id="reseed">形を作り直す</button>
         <select id="ratio" aria-label="比率">
-          <option value="1:1">1:1</option><option value="4:5">4:5 縦</option><option value="3:4">3:4</option><option value="16:9">16:9 横</option>
+          <optgroup label="汎用（書き出しは長辺 2400px）">
+            <option value="1:1">1:1 スクエア</option>
+            <option value="3:4">3:4 縦</option><option value="4:3">4:3 横</option>
+            <option value="9:16">9:16 縦</option><option value="16:9">16:9 横</option>
+            <option value="4:5">4:5 縦</option>
+          </optgroup>
+          <optgroup label="Instagram（仕様の画素数で書き出す）">
+            <option value="ig-square">フィード 正方形 1080×1080</option>
+            <option value="ig-portrait">フィード 縦 4:5 1080×1350</option>
+            <option value="ig-tall">フィード 縦 3:4 1080×1440</option>
+            <option value="ig-landscape">フィード 横 1.91:1 1080×566</option>
+            <option value="ig-story">ストーリーズ／リール 9:16 1080×1920</option>
+          </optgroup>
         </select>
       </div>
       <div class="row"><label for="size">ブロブの大きさ <output id="o-size"></output></label><input type="range" id="size" min="6" max="100" value="17"></div>

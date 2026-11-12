@@ -208,7 +208,7 @@ async function draw(): Promise<void> {
     view.width = c.width; view.height = c.height; ctx.drawImage(c, 0, 0);
     const n = chosen().length;
     $('s-info').textContent = showSources ? `素材 ${n}枚` : `シード ${seed}・ブロブ ${camo ? camo.comps.count : 0}・素材 ${n}枚・${Math.round(performance.now() - t0)}ms`;
-    setStatus(all.length ? (n ? '' : '種類を1つ選んで。') : 'samples/ に素材がない。npm run samples で集める。');
+    setStatus(all.length ? (n ? '' : '種類を1つ選んで。') : '素材がまだない。「自分の画像を足す」から入れて。');
   } catch (e) {
     setStatus(e instanceof Error ? e.message : String(e));
   }

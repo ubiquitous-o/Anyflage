@@ -249,6 +249,10 @@ async function draw(): Promise<void> {
 function drawChips(): void {
   $('empty').hidden = all.length > 0;
   if (!all.length) $<HTMLDetailsElement>('own-box').open = true; // 画像セットがないときは、足す手順を開いておく
+  // 枚数に決め打ちの上限は置かない。いちばん多いセットの枚数まで動かせる
+  const most = Math.max(1, ...groups.map((gname) => all.filter((s) => s.group === gname).length));
+  $('per').max = String(most);
+  if (+$('per').value > most) $('per').value = String(most);
   const box = $<HTMLDivElement>('groups'); box.textContent = '';
   for (const gname of groups) {
     const b = document.createElement('button'); b.type = 'button'; b.textContent = gname;
@@ -380,8 +384,9 @@ $('ownadd').addEventListener('click', async () => {
   if (!added) { syncOwn(); return; }
   ownFiles = []; $('own').value = ''; nameBox.value = ''; syncOwn(); // 次のセットのために空に戻す。背景除去のしかたは選んだまま残す
   groups.push(name); picked.add(name);
-  if (+$('per').value < added) $('per').value = String(Math.min(+$('per').max, added)); // 足した枚数ぶんは使う
-  drawChips(); syncUi(); void draw();
+  drawChips(); // ここで枚数の上限が、足したセットに合わせて広がる
+  if (+$('per').value < added) $('per').value = String(added); // 足した枚数ぶんは使う
+  syncUi(); void draw();
 });
 $('showsrc').addEventListener('click', () => { showSources = !showSources; $('showsrc').setAttribute('aria-pressed', String(showSources)); void draw(); });
 $('save').addEventListener('click', async () => {

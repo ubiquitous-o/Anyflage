@@ -95,7 +95,8 @@ button:disabled { opacity: 0.45; cursor: default; }
 
 /* 枠の背景に敷く、いまの迷彩。絵より沈めて、絵には縁取りを付けて境目を分ける */
 #backdrop { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: -1; opacity: .5; filter: saturate(.75) brightness(.7); pointer-events: none; }
-.viewport canvas#view { outline: 3px solid var(--ink); box-shadow: 0 0 0 7px rgb(20 23 15 / .92), 0 10px 36px rgb(0 0 0 / .7); }
+.viewport canvas[hidden] { display: none; }
+.viewport canvas#view, .viewport canvas#motion-view { outline: 3px solid var(--ink); box-shadow: 0 0 0 7px rgb(20 23 15 / .92), 0 10px 36px rgb(0 0 0 / .7); }
 
 /* 入・切のスイッチ */
 .switch { display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; padding: 6px 4px; user-select: none; }

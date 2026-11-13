@@ -4,6 +4,9 @@ import { Kao } from './engine/kao.ts';
 import { PATTERNS, patternById } from './engine/patterns.ts';
 import type { Method, Params, RGB } from './engine/types.ts';
 import * as engine from './client.ts';
+import { Motion } from './motion.ts';
+import type { MotionKind, MotionOptions } from './motion.ts';
+import type { PhaseMap } from './render.ts';
 import type { Job } from './render.ts';
 import type { MaterialOptions } from './material.ts';
 import { addOwnImage, forgetOwnImages, loadCutout, loadManifests, restoreOwnImages } from './samples.ts';
@@ -52,6 +55,8 @@ const SLIDERS = ['per', 'softlim', 'neck', 'notch', 'flat', 'mix', 'carve', 'pro
 const PREVIEW = 720, EXPORT = 2400;
 
 const view = $<HTMLCanvasElement>('view'), ctx = view.getContext('2d')!;
+/** 動かした絵を出すキャンバス。view の真上に、同じ大きさで重ねる */
+const mview = $<HTMLCanvasElement>('motion-view');
 let all: Sample[] = [], groups: string[] = [];
 const picked = new Set<string>(), sent = new Set<string>(); // sent：描く Worker に渡した素材
 let ownBusy = false, exporting = false;
@@ -226,9 +231,10 @@ async function sources(): Promise<string[]> {
 }
 /** 絵を1枚、Worker に描いてもらう。設定のうち関数（layerAt）は送れないので外す。柄は名前から向こうで作る */
 async function paint(kind: Job['kind'], W: number, H: number, mats: string[], p: Params, reuse: boolean): Promise<ImageData> {
-  const job: Job = { kind, W, H, p: { ...p, layerAt: undefined }, colors: colors(p.pattern || 'blob') as number[][], mats, mat: matOptions(), soft: $('soft').checked, edges: $('edges').checked, reuse, tileRef: kind === 'tile' ? dims(PREVIEW) : undefined };
+  const job: Job = { kind, W, H, p: { ...p, layerAt: undefined }, colors: colors(p.pattern || 'blob') as number[][], mats, mat: matOptions(), soft: $('soft').checked, edges: $('edges').checked, reuse, tileRef: kind === 'tile' ? dims(PREVIEW) : undefined, phase: reuse && kind !== 'orig' && !$('compare').value };
   const r = await engine.render(job);
   lastBlobs = r.blobs;
+  if (job.phase) lastPhase = r.phase || null; // 「呼吸」用。粗い地図なので、書き出しでも画面用のものを使う
   return new ImageData(r.data, r.W, r.H);
 }
 interface Tile { label: string; p: Params }
@@ -335,6 +341,7 @@ async function drawOnce(): Promise<void> {
     const resized = view.width !== c.width || view.height !== c.height;
     view.width = c.width; view.height = c.height; ctx.drawImage(c, 0, 0);
     drawn = true;
+    motionPicture(); // 動かしているなら、新しい絵を渡す
     if (resized) layoutView(); // 絵の大きさが変わったら、置き方を合わせ直す
     drawBackdrop(); // 柄や色が変わっていれば、枠の背景も描き直す
     const n = chosen().length;
@@ -386,6 +393,10 @@ function syncUi(): void {
   $('fit').disabled = !cmp && m !== 'radial';
   $('mix').disabled = !cmp && !HYBRID.includes(m);
   $('imp').disabled = !cmp && !['area', 'areaharm', 'blend'].includes(m);
+  $('o-mamt').textContent = `${$('mamt').value}%`; $('o-mfine').textContent = `${$('mfine').value}升`; $('o-msec').textContent = `${$('msec').value}秒`;
+  $('motion-box').hidden = !$('motion').checked;
+  const [vw, vh] = dims(videoLong()); $('video-note').textContent = `動画の大きさ：${vw & ~1}×${vh & ~1} px・${VIDEO_FPS}fps・${$('msec').value}秒で1周。くり返し再生すると、継ぎ目なくつながる。`;
+  syncMotion();
 }
 
 // ---- プレビューの拡大縮小と移動 ----
@@ -398,7 +409,7 @@ function applyView(): void {
   // 絵が枠より小さい向きは中央に置く。大きい向きは、絵の端が枠の端より内側に入らないようにする
   panX = w <= vw ? (vw - w) / 2 : Math.min(0, Math.max(vw - w, panX));
   panY = h <= vh ? (vh - h) / 2 : Math.min(0, Math.max(vh - h, panY));
-  view.style.transform = `translate(${panX}px, ${panY}px) scale(${zoom})`;
+  view.style.transform = mview.style.transform = `translate(${panX}px, ${panY}px) scale(${zoom})`;
   $('zoom-val').textContent = `${Math.round(zoom * 100)}%`;
   viewport.classList.toggle('pannable', w > vw || h > vh);
 }
@@ -483,8 +494,77 @@ function drawBackdrop(): void {
 new ResizeObserver(() => { layoutView(); drawBackdrop(); }).observe(viewport);
 window.addEventListener('resize', () => drawBackdrop());
 
+// ---- 動かす ----
+// できあがった絵を、ループする「ずらしの場」で毎フレームゆがめる（motion.ts）。絵は作り直さないので、設定を変えてもすぐ動きが変わる。
+// 動かし方の設定を変えても、絵は描き直さない。
+const VIDEO_FPS = 30, MOTION_IDS = ['motion', 'mkind', 'mamt', 'mfine', 'msec'];
+let motion: Motion | null = null, lastPhase: PhaseMap | null = null, motionRaf = 0;
+/** ふつうの絵（比較表示でも、切り抜きの一覧でもない）か。リピートと「呼吸」は、ふつうの絵のときだけ効く */
+const plain = (): boolean => !$('compare').value && !showSources;
+/** 動画の長辺。大きさが決まっている比率はそのまま。汎用の比率は 1920 */
+function videoLong(): number { return exactSize() ? exportLong() : 1920; }
+function motionOptions(tiles: number): MotionOptions {
+  return { kind: $('mkind').value as MotionKind, amount: +$('mamt').value / 100, fine: +$('mfine').value, tiles, wrap: plain() && $('repeat').checked, seed };
+}
+/** いま画面にある絵を、動かす側に渡す */
+function motionPicture(): void {
+  if (!$('motion').checked) return;
+  try { motion ??= new Motion(mview); }
+  catch (e) { $('motion').checked = false; $('motion-box').hidden = true; setStatus(e instanceof Error ? e.message : String(e)); return; }
+  motion.setPicture(view); motion.setPhase(plain() ? lastPhase : null);
+}
+function motionFrame(now: number): void {
+  motionRaf = 0;
+  if (!$('motion').checked) { mview.hidden = true; return; }
+  // 前の絵を見ているあいだと、書き出しのあいだは止める
+  const show = !!motion?.ready && !showingBefore && !exporting && mview.width === view.width && mview.height === view.height;
+  mview.hidden = !show;
+  if (show) motion!.draw(Math.PI * 2 * ((now / 1000 / +$('msec').value) % 1), motionOptions(plain() && $('repeat').checked && $('repeatgrid').checked ? 2 : 1));
+  motionRaf = requestAnimationFrame(motionFrame);
+}
+function syncMotion(): void {
+  if (!$('motion').checked) { mview.hidden = true; return; }
+  if (!motion?.ready && drawn) motionPicture();
+  if (!motionRaf) motionRaf = requestAnimationFrame(motionFrame);
+}
+$('save-video').addEventListener('click', async () => {
+  if (exporting) return;
+  const btn = $('save-video'), secs = +$('msec').value, N = Math.round(secs * VIDEO_FPS);
+  exporting = true; btn.disabled = true; $('save').disabled = true; btn.textContent = '書き出している…';
+  setStatus(''); setBusy('動画にする絵を描いている…');
+  await paintNow();
+  let m: Motion | null = null;
+  const done = (msg: string): void => { m?.dispose(); exporting = false; btn.disabled = false; $('save').disabled = false; btn.textContent = 'MP4を保存'; setBusy(null); setStatus(msg); if (wanted) void draw(); };
+  try {
+    if (typeof VideoEncoder === 'undefined') throw new Error('このブラウザでは動画を書き出せない（WebCodecs が使えない）。');
+    const mb = await import('mediabunny');
+    const still = await produce(videoLong(), false);
+    // H.264 は偶数の画素数しか受けない。奇数なら1画素だけ縮める
+    const W = still.width & ~1, H = still.height & ~1, cv = document.createElement('canvas');
+    m = new Motion(cv);
+    if (Math.max(W, H) > m.maxSize || !(await mb.canEncodeVideo('avc', { width: W, height: H }))) throw new Error(`この大きさ（${W}×${H} px）は、このブラウザでは MP4 にできない。小さい大きさを選んで。`);
+    m.setPicture(still, W, H); m.setPhase(plain() ? lastPhase : null);
+    const target = new mb.BufferTarget(), out = new mb.Output({ format: new mb.Mp4OutputFormat(), target });
+    const src = new mb.CanvasSource(cv, { codec: 'avc', bitrate: mb.QUALITY_HIGH });
+    out.addVideoTrack(src, { frameRate: VIDEO_FPS });
+    await out.start();
+    const o = motionOptions(1);
+    for (let i = 0; i < N; i++) { // i = N は i = 0 と同じ絵。入れない。最後のコマの次が最初のコマにつながる
+      m.draw(Math.PI * 2 * i / N, o);
+      await src.add(i / VIDEO_FPS, 1 / VIDEO_FPS);
+      if (i % 5 === 0) { setBusy(`動画にしている…（${i}/${N} コマ）`); await new Promise((r) => setTimeout(r, 0)); }
+    }
+    setBusy('ファイルにしている…');
+    await out.finalize();
+    if (!target.buffer) throw new Error('動画を作れなかった。');
+    const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([target.buffer], { type: 'video/mp4' }));
+    a.download = `anyflage-${seed}.mp4`; a.click();
+    done(`保存した。${W}×${H} px・${secs}秒`);
+  } catch (e) { done(e instanceof Error ? e.message : String(e)); }
+});
+
 // ---- URL との行き来 ----
-const FIELDS = [...SLIDERS, 'size', 'method', 'compare', 'assign', 'ratio', 'ow', 'oh', 'palette', 'pattern', 'split'];
+const FIELDS = [...SLIDERS, 'size', 'method', 'compare', 'assign', 'ratio', 'ow', 'oh', 'palette', 'pattern', 'split', 'mkind', 'mamt', 'mfine', 'msec'];
 function writeUrl(): void {
   const q = new URLSearchParams();
   q.set('groups', [...picked].join(','));
@@ -503,7 +583,7 @@ function writeUrl(): void {
 }
 /** 最初の値を覚える。applyQuery が「指定のない項目は最初の値に戻す」ために使う。起動時に1回だけ */
 /** 入・切のもの。最初の状態（index.html の checked）を覚えておき、URL には違うものだけ書く */
-const CHECKS = ['fitblob', 'smooth', 'soft', 'trim', 'soften', 'edges', 'repeat'];
+const CHECKS = ['fitblob', 'smooth', 'soft', 'trim', 'soften', 'edges', 'repeat', 'motion'];
 function rememberDefaults(): void { for (const id of FIELDS) $(id).dataset.initial = $(id).value; for (const id of CHECKS) $(id).dataset.initial = $(id).checked ? '1' : '0'; }
 /** 設定をまるごと、この問い合わせ文字列の状態にする。指定のない項目は最初の値に戻す */
 function applyQuery(text: string): void {
@@ -566,6 +646,9 @@ window.addEventListener('keydown', (ev) => {
 // 色選びと配色の名前（#pal-box の中）は、表示だけ合わせる。描き直しは自分のリスナーでやる
 const QUIET = ['ownname', 'own', 'ownkind', 'ow', 'oh', 'size', 'size-jog', 'showsrc', 'lang'];
 const isSlider = (t: EventTarget | null): boolean => t instanceof HTMLInputElement && t.type === 'range';
+// 動かし方の設定は、絵を描き直さない。動きだけ変える
+$('sheet').addEventListener('input', (ev) => { if (MOTION_IDS.includes((ev.target as HTMLElement).id)) { ev.stopImmediatePropagation(); syncUi(); if (!isSlider(ev.target)) writeUrl(); } });
+$('sheet').addEventListener('change', (ev) => { if (MOTION_IDS.includes((ev.target as HTMLElement).id)) { ev.stopImmediatePropagation(); if (isSlider(ev.target)) writeUrl(); } });
 $('sheet').addEventListener('input', (ev) => { if (QUIET.includes((ev.target as HTMLElement).id)) return; syncUi(); if ((ev.target as HTMLElement).closest('#pal-box')) return; if (!isSlider(ev.target)) void draw(); });
 $('sheet').addEventListener('change', (ev) => { if (isSlider(ev.target) && !QUIET.includes((ev.target as HTMLElement).id)) void draw(); });
 for (const id of ['ow', 'oh']) $(id).addEventListener('change', () => { $(id).value = String(clampPx($(id).value)); syncUi(); void draw(); }); // 数字は打ち終わってから描き直す

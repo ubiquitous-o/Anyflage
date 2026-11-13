@@ -13,6 +13,7 @@
   <section class="stage">
     <div id="viewport" class="viewport" title="ホイールで拡大縮小、ドラッグで移動、ダブルクリックで全体と等倍を切り替え">
       <canvas id="view" width="720" height="720"></canvas>
+      <canvas id="motion-view" width="8" height="8" hidden aria-hidden="true"></canvas>
       <div class="before-tag" aria-hidden="true">前の絵</div>
       <div id="busy" class="busy" hidden aria-live="polite"><span class="spin" aria-hidden="true"></span><span id="busy-text"></span></div>
     </div>
@@ -225,6 +226,23 @@
       <label class="switch" id="repeatgrid-row" hidden><input type="checkbox" id="repeatgrid" role="switch"><span class="knob" aria-hidden="true"></span>2×2 に並べて継ぎ目を見る</label>
       <p id="repeat-note" class="note" hidden>絵の中ほどの柄は、リピートなしのときと同じ。端のあたりだけ、つながるように柄が変わる。ブロブの切れ方と、どの画像がどこに入るかは変わる（大きすぎるブロブを割る処理と、隣どうしで同じ素材を避ける割り当ては、リピートでは使えない）。書き出すのはいつも1枚ぶん。</p>
       <button type="button" class="primary" id="save">PNGを保存</button>
+      <label class="switch"><input type="checkbox" id="motion" role="switch"><span class="knob" aria-hidden="true"></span>動かす（ループする動画にする）</label>
+      <div id="motion-box" hidden>
+        <div class="row"><label for="mkind">動かし方</label>
+          <select id="mkind">
+            <option value="sway">ゆらぎ（ばらばらに揺れる）</option>
+            <option value="flow">流れ（液体のように回る）</option>
+            <option value="breathe">呼吸（ブロブごとにふくらむ・しぼむ）</option>
+            <option value="wave">波（一方向へ渡る）</option>
+            <option value="double">二重ゆがめ（強くうねる）</option>
+          </select>
+        </div>
+        <div class="row"><label for="mamt">動きの大きさ <output id="o-mamt"></output></label><input type="range" id="mamt" min="0" max="150" step="5" value="60"></div>
+        <div class="row"><label for="mfine">動きの細かさ <output id="o-mfine"></output></label><input type="range" id="mfine" min="2" max="30" value="10"></div>
+        <div class="row"><label for="msec">1周の長さ <output id="o-msec"></output></label><input type="range" id="msec" min="2" max="12" value="5"></div>
+        <p id="video-note" class="note"></p>
+        <button type="button" class="primary" id="save-video">MP4を保存</button>
+      </div>
     </fieldset>
   </form>
 </main>

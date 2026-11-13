@@ -89,5 +89,5 @@ export async function prepare(ids: string[], mat: MaterialOptions, method: strin
 export async function render(job: Job): Promise<Result> {
   const r = await ask(painter, { t: 'job', n: ++seq, job });
   if (r.t !== 'done') throw new Error('描けなかった');
-  return { data: r.data, W: r.W, H: r.H, blobs: r.blobs };
+  return { data: r.data, W: r.W, H: r.H, blobs: r.blobs, phase: r.phase };
 }

@@ -21,6 +21,7 @@
   },
   "dependencies": {
     "@mediapipe/tasks-vision": "^1.2.3",
+    "mediabunny": "^1.65.2",
     "onnxruntime-web": "^1.31.1"
   }
 }

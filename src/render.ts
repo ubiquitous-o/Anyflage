@@ -26,8 +26,23 @@ export interface Job {
   reuse: boolean;
   /** リピートの絵（kind が tile）で、ブロブ分けを決める升の大きさ [幅, 高さ]。画面用と書き出し用で同じ値を渡すと、同じ絵になる */
   tileRef?: [number, number];
+  /** ブロブごとの位相の地図も返す（絵を動かすときの「呼吸」用） */
+  phase?: boolean;
 }
-export interface Result { data: Uint8ClampedArray<ArrayBuffer>; W: number; H: number; blobs: number }
+/** ブロブごとに決めた位相 φ の、cos と sin を並べた粗い地図（0〜255。128 が 0）。ぼかして使う */
+export interface PhaseMap { data: Uint8Array<ArrayBuffer>; w: number; h: number }
+export interface Result { data: Uint8ClampedArray<ArrayBuffer>; W: number; H: number; blobs: number; phase?: PhaseMap }
+
+/** 絵の窓 (x0, y0, w, h) を粗く見て、画素ごとに「そこのブロブの位相」を書く。位相はブロブの鍵（なければ番号）から決める */
+function phaseMap(cam: Camo, x0: number, y0: number, w: number, h: number, seed: number): PhaseMap {
+  const k = 192 / Math.max(w, h), pw = Math.max(2, Math.round(w * k)), ph = Math.max(2, Math.round(h * k)), data = new Uint8Array(pw * ph * 2);
+  for (let j = 0; j < ph; j++) for (let i = 0; i < pw; i++) {
+    const x = x0 + Math.min(w - 1, Math.floor((i + 0.5) * w / pw)), y = y0 + Math.min(h - 1, Math.floor((j + 0.5) * h / ph)), c = cam.ids[y * cam.W + x];
+    const a = c < 0 ? 0 : Math.PI * 2 * Kao.hash2(cam.keys ? cam.keys[c] : c, 53, seed | 0);
+    data[(j * pw + i) * 2] = Math.round(128 + 127 * Math.cos(a)); data[(j * pw + i) * 2 + 1] = Math.round(128 + 127 * Math.sin(a));
+  }
+  return { data, w: pw, h: ph };
+}
 
 const materials = new Map<string, Material>();
 export function setMaterial(id: string, raw: Raster): void { if (!materials.has(id)) materials.set(id, new Material(raw)); }
@@ -128,7 +143,7 @@ function renderOne(job: Job, p: Params, src: Picker[]): Result {
   Kao.renderCamo(data, cam, src, job.colors as RGB[], p);
   if (job.soft) softenEdges(data, W, H, cam);
   if (job.edges) whiteEdges(data, cam.ids, W, 0, 0, W - 1, H - 1); // ブロブの境目を白い線で描く。どこで切れているか見る用
-  return { data, W, H, blobs: cam.comps.count };
+  return { data, W, H, blobs: cam.comps.count, phase: job.phase ? phaseMap(cam, 0, 0, W, H, p.seed) : undefined };
 }
 
 /**
@@ -168,7 +183,7 @@ function renderTile(job: Job, p: Params, src: Picker[]): Result {
   const data = new Uint8ClampedArray(W * H * 4);
   for (let y = 0; y < H; y++) data.set(big.subarray(((y0 + y) * W2 + x0) * 4, ((y0 + y) * W2 + x0 + W) * 4), y * W * 4);
   let blobs = 0; for (let c = 0; c < cm.count; c++) if (cm.area[c] && !(cm.x1[c] < x0 || cm.y1[c] < y0 || cm.x0[c] >= x0 + W || cm.y0[c] >= y0 + H)) blobs++;
-  return { data, W, H, blobs };
+  return { data, W, H, blobs, phase: job.phase ? phaseMap(cam, x0, y0, W, H, p.seed) : undefined };
 }
 
 /**

@@ -58,6 +58,14 @@ const EN: Record<string, string> = {
   '2×2 に並べて継ぎ目を見る': 'Repeat 2×2 to check the seams',
   '絵の中ほどの柄は、リピートなしのときと同じ。端のあたりだけ、つながるように柄が変わる。ブロブの切れ方と、どの画像がどこに入るかは変わる（大きすぎるブロブを割る処理と、隣どうしで同じ素材を避ける割り当ては、リピートでは使えない）。書き出すのはいつも1枚ぶん。': 'The pattern in the middle of the image is the same as without tiling. Only the area near the edges changes so that they join. How blobs are cut and which image goes where do change (cutting oversized blobs and avoiding the same image in neighbours are not available when tileable). Export always saves a single tile.',
   'PNGを保存': 'Save PNG', '書き出している…': 'Exporting…', 'ファイルにしている…': 'Encoding the file…', '画像を作れなかった。': 'Could not create the image.',
+  // 動かす
+  '動かす（ループする動画にする）': 'Animate (make a looping video)', '動かし方': 'Motion',
+  'ゆらぎ（ばらばらに揺れる）': 'Sway (every part drifts on its own)', '流れ（液体のように回る）': 'Flow (swirls like liquid)', '呼吸（ブロブごとにふくらむ・しぼむ）': 'Breathe (each blob swells and shrinks)',
+  '波（一方向へ渡る）': 'Wave (travels in one direction)', '二重ゆがめ（強くうねる）': 'Double warp (strong swirls)',
+  '動きの大きさ': 'Motion amount', '動きの細かさ': 'Motion detail', '1周の長さ': 'Loop length', 'MP4を保存': 'Save MP4',
+  '動画にする絵を描いている…': 'Drawing the image for the video…', '動画を作れなかった。': 'Could not create the video.',
+  'このブラウザでは動画を書き出せない（WebCodecs が使えない）。': 'This browser cannot export video (WebCodecs is unavailable).',
+  'このブラウザでは動かせない（WebGL2 が使えない）。': 'This browser cannot animate (WebGL2 is unavailable).',
   // 状態
   '描いている…': 'Drawing…', '描いている…（枚数が多いと時間がかかる）': 'Drawing… (many images take longer)', '種類を1つ選んで。': 'Choose at least one set.', '素材がまだない。「自分の画像を足す」から入れて。': 'No images yet. Add some under "Add your own images".',
   '人の切り抜きに失敗した': 'Could not cut out the person', '自分で足した画像': 'Added by you',
@@ -105,6 +113,12 @@ const EN: Record<string, string> = {
 
 /** 数字や名前が入る文言。上から順に試す */
 const RULES: [RegExp, (m: RegExpMatchArray) => string][] = [
+  [/^(\d+)升$/, (m) => `${m[1]} cells`],
+  [/^(\d+)秒$/, (m) => `${m[1]} s`],
+  [/^動画の大きさ：(\d+)×(\d+) px・(\d+)fps・(\d+)秒で1周。くり返し再生すると、継ぎ目なくつながる。$/, (m) => `Video size: ${m[1]}×${m[2]} px, ${m[3]} fps, one loop in ${m[4]} s. It joins seamlessly when played on repeat.`],
+  [/^動画にしている…（(\d+)\/(\d+) コマ）$/, (m) => `Encoding the video… (frame ${m[1]} of ${m[2]})`],
+  [/^保存した。(\d+)×(\d+) px・(\d+)秒$/, (m) => `Saved. ${m[1]}×${m[2]} px, ${m[3]} s`],
+  [/^この大きさ（(\d+)×(\d+) px）は、このブラウザでは MP4 にできない。小さい大きさを選んで。$/, (m) => `This browser cannot make an MP4 at ${m[1]}×${m[2]} px. Choose a smaller size.`],
   [/^シード (\d+)・ブロブ (\d+)・素材 (\d+)枚・(\d+)ms$/, (m) => `Seed ${m[1]} · ${m[2]} blobs · ${m[3]} images · ${m[4]} ms`],
   [/^素材 (\d+)枚$/, (m) => `${m[1]} images`],
   [/^全部（(\d+)枚）$/, (m) => `All (${m[1]})`],

@@ -73,6 +73,13 @@ button:disabled { opacity: 0.45; cursor: default; }
 .spin { width: 44px; height: 44px; border-radius: 50%; border: 4px solid rgb(243 244 234 / .25); border-top-color: var(--accent); animation: spin .8s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .spin { animation-duration: 2.4s; } }
+/* 裏で続いている作業の札。プレビューは暗くしない（できたコマから見せているため）。下の端に出す */
+.work-tag { position: absolute; left: 50%; bottom: 12px; transform: translateX(-50%); display: flex; align-items: center; gap: 10px; max-width: calc(100% - 24px); padding: 7px 14px 7px 10px; border-radius: 999px; background: rgb(20 23 15 / .88); border: 1px solid var(--line); color: var(--ink); font-size: 13px; font-weight: 700; pointer-events: none; white-space: nowrap; }
+.work-tag[hidden] { display: none; }
+.work-tag .spin { width: 18px; height: 18px; border-width: 3px; flex: none; }
+.work-tag .bar { flex: none; width: 72px; height: 5px; border-radius: 999px; background: rgb(243 244 234 / .2); overflow: hidden; }
+.work-tag .bar > span { display: block; height: 100%; width: 0; background: var(--accent); }
+.viewport.working .work-tag { display: none; } /* 大きい作業中の表示が出ているあいだは、そちらに任せる */
 .size-pair { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--dim); }
 .size-pair[hidden] { display: none; }
 .size-pair label { display: flex; align-items: center; gap: 4px; }

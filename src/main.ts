@@ -539,7 +539,7 @@ const lavaLead = (n: number): number => Math.min(n - 1, Math.ceil(0.4 * n / +$('
  * 本番では、ブロブごとに途中で前向きの割り当てから後ろ向きの割り当てへ乗り換える。こうすると、終わりが必ず 0 コマ目につながる。
  * stale が true を返したら、途中でやめる。note には、下ごしらえの進み具合が来る。
  */
-async function lavaRun(W: number, H: number, mats: string[], p: Params, n: number, emit: (i: number, img: ImageData) => void | Promise<void>, note: (text: string) => void, stale: () => boolean = () => false): Promise<void> {
+async function lavaRun(W: number, H: number, mats: string[], p: Params, n: number, emit: (i: number, img: ImageData) => void | Promise<void>, note: (text: string, done: number) => void, stale: () => boolean = () => false): Promise<void> {
   const lead = lavaLead(n);
   const step = async (i: number, pass: 'f' | 'b' | 'draw', first: boolean): Promise<ImageData> => {
     const job: Job = { kind: 'one', W, H, p: { ...p, layerAt: undefined }, colors: colors(p.pattern || 'blob') as number[][], mats, mat: matOptions(), soft: $('soft').checked, edges: $('edges').checked, reuse: false,
@@ -547,29 +547,35 @@ async function lavaRun(W: number, H: number, mats: string[], p: Params, n: numbe
     const r = await engine.render(job);
     return new ImageData(r.data, r.W, r.H);
   };
-  for (let i = 0; i < n; i++) { if (stale()) return; await step(i, 'f', i === 0); if (i % 5 === 0) note(`下ごしらえ 1/2（${i}/${n} コマ）`); }
-  for (let k = 0; k < n; k++) { if (stale()) return; await step((n - k) % n, 'b', k === 0); if (k % 5 === 0) note(`下ごしらえ 2/2（${k}/${n} コマ）`); } // 0、n-1、n-2、…、1 の順
+  for (let i = 0; i < n; i++) { if (stale()) return; await step(i, 'f', i === 0); if (i % 5 === 0) note(`下ごしらえ 1/2（${i}/${n} コマ）`, i); }
+  for (let k = 0; k < n; k++) { if (stale()) return; await step((n - k) % n, 'b', k === 0); if (k % 5 === 0) note(`下ごしらえ 2/2（${k}/${n} コマ）`, n + k); } // 0、n-1、n-2、…、1 の順
   for (let k = 0; k < lead; k++) { if (stale()) return; await step(n - lead + k, 'draw', k === 0); } // 0 コマ目の手前を描いて捨てる。絵の広がりと、読む位置のならしを効かせておく
   for (let i = 0; i < n; i++) { if (stale()) return; await emit(i, await step(i, 'draw', false)); }
+}
+/** ラバランプの進み具合を出す。スイッチの下の文と、プレビューの上の札の両方。text が空なら消す。frac は全体のうち済んだ割合（0〜1） */
+function lavaNote(text: string, frac = 0): void {
+  $('lava-progress').textContent = text;
+  $('lava-tag').hidden = !text; $('lava-tag-text').textContent = text; $('lava-tag-bar').style.width = `${Math.round(Math.min(1, Math.max(0, frac)) * 100)}%`;
 }
 /** 画面用のコマを、最初から描き直す。途中で設定が変わったら、古いほうはやめる */
 async function startLava(): Promise<void> {
   const gen = ++lavaGen, had = lavaFrames.length > 0;
-  lavaFrames = []; lavaShown = -1; $('lava-progress').textContent = '';
+  lavaFrames = []; lavaShown = -1; lavaNote('');
   if (had && drawn && !showingBefore) motionPicture(); // コマを捨てた。止まった絵に戻す
   if (!lavaOn() || !drawn || exporting) return;
   try {
     const src = await sources(), p = params(), [W, H] = dims(PREVIEW), N = lavaCount();
     lavaN = N;
     const stale = (): boolean => gen !== lavaGen || exporting;
-    $('lava-progress').textContent = 'ラバランプを描いている…';
+    const total = 3 * N + lavaLead(N); // 下ごしらえ2周、捨てるコマ、本番
+    lavaNote('ラバランプを描いている…');
     await lavaRun(W, H, src, p, N, (i, img) => {
       if (stale()) return;
       const c = document.createElement('canvas'); c.width = W; c.height = H; c.getContext('2d')!.putImageData(img, 0, 0);
       lavaFrames[i] = c;
-      $('lava-progress').textContent = i + 1 < N ? `ラバランプを描いている…（${i + 1}/${N} コマ）` : '';
-    }, (t) => { if (!stale()) $('lava-progress').textContent = `ラバランプを描いている…（${t}）`; }, stale);
-  } catch (e) { if (gen === lavaGen) setStatus(e instanceof Error ? e.message : String(e)); }
+      if (i + 1 < N) lavaNote(`ラバランプを描いている…（${i + 1}/${N} コマ）`, (total - N + i + 1) / total); else lavaNote('');
+    }, (t, done) => { if (!stale()) lavaNote(`ラバランプを描いている…（${t}）`, done / total); }, stale);
+  } catch (e) { if (gen === lavaGen) { lavaNote(''); setStatus(e instanceof Error ? e.message : String(e)); } }
 }
 function motionFrame(now: number): void {
   motionRaf = 0;

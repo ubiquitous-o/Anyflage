@@ -16,7 +16,7 @@ const EN: Record<string, string> = {
   // 1 画像セット
   '画像セットを選ぶ': 'Choose image sets',
   '画像セットがまだない。下の「自分の画像を足す」から入れると、迷彩のブロブに押し込める。画像はこのブラウザの中だけで使う。どこにも送らない。': 'No image sets yet. Add some under "Add your own images" below and they will be squeezed into the camouflage blobs. Images are used only inside this browser and are never sent anywhere.',
-  '1セットあたりの枚数': 'Images per set', 'シャッフル': 'Shuffle', '切り抜きを見る': 'Show cutouts', '自分の画像を足す': 'Add your own images',
+  '使う画像の枚数': 'Images to use', 'シャッフル': 'Shuffle', '切り抜きを見る': 'Show cutouts', '自分の画像を足す': 'Add your own images',
   '画像を選ぶ': 'Choose images', 'まだ選んでいない。まとめて入れたい画像は、一度に複数選ぶ。': 'Nothing chosen yet. To add several images as one set, select them all at once.',
   '背景除去のしかたを選ぶ': 'Choose how to remove the background', 'しない（切り抜き済みの画像）': 'None (images are already cut out)',
   '人の顔だけ残す（髪なし）': 'Keep the face only (no hair)', '人の顔と髪を残す': 'Keep the face and hair', '人の全身を残す': 'Keep the whole person', 'もの・キャラを残す': 'Keep the object or character',

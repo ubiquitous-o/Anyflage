@@ -195,13 +195,21 @@ const paintNow = (): Promise<void> => new Promise((r) => requestAnimationFrame((
 
 /** 選んだ種類から、種類ごとに先頭 per 枚 */
 function chosen(): Sample[] {
-  const per = +$('per').value;
-  // shuf が 0 なら並び順の先頭から。それ以外は種類ごとに並びをかき混ぜてから取る
-  return groups.filter((g) => picked.has(g)).flatMap((g) => {
+  const want = +$('per').value;
+  // セットごとの並び。shuf が 0 なら並び順のまま。それ以外はセットごとに並びをかき混ぜる
+  const lists = groups.filter((g) => picked.has(g)).map((g) => {
     const list = all.filter((s) => s.group === g);
-    if (!shuf) return list.slice(0, per);
-    return list.map((s, i) => ({ s, k: Kao.hash2(i, 71, shuf) })).sort((a, b) => a.k - b.k).slice(0, per).map((e) => e.s);
+    return shuf ? list.map((s, i) => ({ s, k: Kao.hash2(i, 71, shuf) })).sort((a, b) => a.k - b.k).map((e) => e.s) : list;
   });
+  // 枚数は、選んだセットぜんぶで合わせて want 枚。セットから1枚ずつ順番に取っていくので、どのセットもなるべく同じ枚数になる。
+  // 少ないセットは先に使い切り、残りは多いセットから取る
+  const out: Sample[] = [];
+  for (let k = 0; out.length < want; k++) {
+    let any = false;
+    for (const list of lists) if (k < list.length && out.length < want) { out.push(list[k]); any = true; }
+    if (!any) break;
+  }
+  return out;
 }
 /** いまの設定での、素材の作り方 */
 const matOptions = (): MaterialOptions => ({ carve: num('carve'), protect: num('protect'), fitBlob: $('fitblob').checked, soften: $('soften').checked, softLimit: +$('softlim').value });
@@ -340,10 +348,10 @@ async function drawOnce(): Promise<void> {
 function drawChips(): void {
   $('empty').hidden = all.length > 0;
   if (!all.length) $<HTMLDetailsElement>('own-box').open = true; // 画像セットがないときは、足す手順を開いておく
-  // 枚数の上限は、いま選んでいるセットのうち、いちばん多いセットの枚数。右端まで動かせば、選んだセットを全部使う。
+  // 枚数の上限は、いま選んでいるセットの合計の枚数。右端まで動かせば、選んだセットを全部使う。
   // 上限いっぱいにしていたときは、セットを選び直しても上限に付いていく（「全部使う」のまま）
   const sel = groups.filter((gname) => picked.has(gname)), per = $('per'), wasAll = +per.value >= +per.max && +per.max < 9999;
-  const most = Math.max(1, ...(sel.length ? sel : groups).map((gname) => all.filter((s) => s.group === gname).length));
+  const most = Math.max(1, (sel.length ? sel : groups).reduce((n, gname) => n + all.filter((s) => s.group === gname).length, 0)); // 選んだセットの合計
   per.max = String(most);
   if (wasAll || +per.value > most) per.value = String(most);
   syncPer();
@@ -624,7 +632,7 @@ $('ownadd').addEventListener('click', async () => {
   ownFiles = []; $('own').value = ''; nameBox.value = ''; syncOwn(); // 次のセットのために空に戻す。背景除去のしかたは選んだまま残す
   groups.push(name); picked.add(name);
   drawChips(); // ここで枚数の上限が、足したセットに合わせて広がる
-  if (+$('per').value < added) $('per').value = String(added); // 足した枚数ぶんは使う
+  if (+$('per').value < +$('per').max) $('per').value = String(Math.min(+$('per').max, +$('per').value + added)); // 足した枚数ぶん、使う枚数も増やす
   syncUi(); void draw();
 });
 let forgetArmed = 0;

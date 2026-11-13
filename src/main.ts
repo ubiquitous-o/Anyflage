@@ -44,7 +44,7 @@ const TILES: Record<string, Method[]> = {
   '10': ['radial', 'harmonic', 'elastic', 'area', 'contour', 'areaharm', 'diffuse', 'energy', 'blend', 'carve'],
 };
 const HYBRID: Method[] = ['areaharm', 'diffuse', 'energy', 'blend'];
-const SLIDERS = ['per', 'softlim', 'neck', 'notch', 'flat', 'mix', 'carve', 'protect', 'imp', 'size', 'wobble', 'squeeze', 'fit', 'dist', 'rot', 'tint'];
+const SLIDERS = ['per', 'softlim', 'neck', 'notch', 'flat', 'mix', 'carve', 'protect', 'imp', 'wobble', 'squeeze', 'fit', 'dist', 'rot', 'tint'];
 const PREVIEW = 720, EXPORT = 2400;
 
 const view = $<HTMLCanvasElement>('view'), ctx = view.getContext('2d')!;
@@ -54,7 +54,7 @@ let ownBusy = false, exporting = false;
 let seed = 48213, shuf = 0, showSources = false, camo: Camo | null = null, camoKey = '', token = 0;
 
 function params(patternId = $('pattern').value): Params {
-  const pat = patternById(patternId), size = num('size');
+  const pat = patternById(patternId), size = sizeGood / 100;
   return {
     pattern: pat.id, layerAt: pat.id === 'blob' ? undefined : pat.make(seed, size), flatBelow: pat.flatBelow * num('flat'), flatLayers: pat.flatLayers, noSplit: pat.noSplit, split: $('split').value,
     seed, size, neck: num('neck'), notch: num('notch'), wobble: num('wobble'), fit: num('fit'), dist: num('dist'), rot: num('rot'), zoom: 1, tint: num('tint'),
@@ -62,13 +62,96 @@ function params(patternId = $('pattern').value): Params {
   };
 }
 const rgb = (h: string): number[] => [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)];
-/** 柄の本来の色か、選んだ配色。配色は4色なので、層が多い柄には4色のあいだを補って配る */
+
+// ---- ブロブの大きさ ----
+// 数字の入力と − ＋。スライダーのような上限下限は置かない。
+// エンジンはどの大きさでも止まらない（計った。いちばん重い書き出しでも10秒ほど）。止めるのは、それより先は絵が変わらない所だけ：
+// 0.01% より小さいと、書き出しの大きさでもブロブが1画素より小さい。100000% より大きいと、画面ぜんぶが1つのブロブ。
+const SIZE_MIN = 0.01, SIZE_MAX = 100000;
+/** いま使っている大きさ（百分率）。入力欄が空や 0 のときも、最後に通った値で描く */
+let sizeGood = 17;
+/** 入力欄の値を確かめて、使える値に直す。直したときは理由を出す */
+function fixSize(): void {
+  const el = $('size'), v = +el.value, ok = el.value.trim() !== '' && Number.isFinite(v) && v > 0;
+  let s = ok ? v : sizeGood, note = ok ? '' : `0 より大きい数字を入れて。${sizeGood}% のままにした。`;
+  if (s < SIZE_MIN) { s = SIZE_MIN; note = `${SIZE_MIN}% より小さくしても、ブロブが1画素より小さいまま変わらない。${SIZE_MIN}% で止めた。`; }
+  if (s > SIZE_MAX) { s = SIZE_MAX; note = `${SIZE_MAX}% より大きくしても、画面ぜんぶが1つのブロブのまま変わらない。${SIZE_MAX}% で止めた。`; }
+  sizeGood = s; el.value = String(s);
+  $('size-note').textContent = note; $('size-note').hidden = !note; $('size-note').classList.toggle('warn', !!note);
+}
+/** − ＋ で、いまの値に f を掛ける。細かい端数は丸める */
+function stepSize(f: number): void {
+  const v = sizeGood * f;
+  $('size').value = String(+v.toPrecision(v >= 100 ? 3 : 2));
+  fixSize(); syncUi(); void draw();
+}
+
+// ---- 自分の配色 ----
+// 色を1つずつ選んで作り、名前を付けて「配色」に足す。足した配色はこのブラウザに残す（localStorage）。
+// URL には色そのものを書く（palette=custom&colors=c2b280-4b5d2a-…）ので、URL を渡せば同じ色で開ける。
+interface OwnPalette { name: string; colors: string[] }
+const PAL_KEY = 'anyflage.palettes', PAL_MAX = 12;
+const isHex = (h: unknown): h is string => typeof h === 'string' && /^#[0-9a-f]{6}$/i.test(h);
+let ownPalettes: OwnPalette[] = [];
+/** 作りかけの配色。下の色選びが、いつもこれを映す */
+let draft: string[] = PALETTES.woodland.map((h) => h.toLowerCase());
+let palMsg = '';
+function loadPalettes(): void {
+  try {
+    const raw: unknown = JSON.parse(localStorage.getItem(PAL_KEY) || '[]');
+    if (!Array.isArray(raw)) return;
+    for (const e of raw as Partial<OwnPalette>[]) {
+      const cs = Array.isArray(e?.colors) ? e.colors.filter(isHex).slice(0, PAL_MAX).map((h) => h.toLowerCase()) : [];
+      if (typeof e?.name === 'string' && e.name && cs.length && !ownPalettes.some((p) => p.name === e.name)) ownPalettes.push({ name: e.name, colors: cs });
+    }
+  } catch { /* 読めないときは、足した配色なしで始める */ }
+}
+function storePalettes(): void {
+  try { localStorage.setItem(PAL_KEY, JSON.stringify(ownPalettes)); palMsg = ''; }
+  catch { palMsg = 'このブラウザには保存できなかった。開き直すと消える。URL には色が残る。'; }
+}
+const ownPalette = (v: string): OwnPalette | undefined => v.startsWith('my:') ? ownPalettes.find((p) => p.name === v.slice(3)) : undefined;
+/** 選んだ配色の色。柄の本来の色のときは null */
+function paletteBase(): string[] | null {
+  const v = $('palette').value;
+  if (v === 'custom') return draft;
+  if (v.startsWith('my:')) return ownPalette(v)?.colors || draft;
+  return PALETTES[v] || null;
+}
+/** 「配色」の選択に、足した配色を並べ直す */
+function drawPaletteOptions(): void {
+  const sel = $<HTMLSelectElement>('palette');
+  document.getElementById('pal-mine')?.remove();
+  if (!ownPalettes.length) return;
+  const og = document.createElement('optgroup'); og.id = 'pal-mine'; og.label = '自分の配色';
+  for (const p of ownPalettes) { const o = document.createElement('option'); o.value = `my:${p.name}`; o.textContent = p.name; og.appendChild(o); }
+  sel.insertBefore(og, sel.querySelector('option[value="custom"]'));
+}
+/** 作りかけの色を変えた。選択を「作りかけ」に移して描き直す */
+function draftChanged(): void { $('palette').value = 'custom'; syncUi(); void draw(); }
+function drawPalEditor(): void {
+  const box = $<HTMLDivElement>('pal-colors'); box.textContent = '';
+  draft.forEach((hex, i) => {
+    const w = document.createElement('span'); w.className = 'swatch';
+    const c = document.createElement('input'); c.type = 'color'; c.value = hex; c.setAttribute('aria-label', `${i + 1}色目`);
+    c.addEventListener('input', () => { draft[i] = c.value; }); // 選んでいるあいだは覚えるだけ。決めたときに描き直す
+    c.addEventListener('change', () => { draft[i] = c.value; draftChanged(); });
+    const x = document.createElement('button'); x.type = 'button'; x.textContent = '×'; x.setAttribute('aria-label', `${i + 1}色目を消す`); x.disabled = draft.length <= 1;
+    x.addEventListener('click', () => { draft.splice(i, 1); drawPalEditor(); draftChanged(); });
+    w.append(c, x); box.appendChild(w);
+  });
+  const add = document.createElement('button'); add.type = 'button'; add.id = 'pal-add'; add.textContent = '＋ 色を足す'; add.disabled = draft.length >= PAL_MAX;
+  add.addEventListener('click', () => { draft.push(draft[draft.length - 1]); drawPalEditor(); draftChanged(); });
+  box.appendChild(add);
+}
+/** 柄の本来の色か、選んだ配色。配色の色の数が柄の層の数と違うときは、色のあいだを補って配る */
 function colors(patternId: string): RGB[] {
-  const pat = patternById(patternId), name = $('palette').value;
-  if (name === 'native') return pat.colors.map(rgb);
-  const base = PALETTES[name].map(rgb), K = pat.colors.length;
+  const pat = patternById(patternId), src = paletteBase();
+  if (!src || !src.length) return pat.colors.map(rgb);
+  const base = src.map(rgb), N = base.length, K = pat.colors.length;
   return pat.colors.map((_, k) => {
-    const t = K > 1 ? k / (K - 1) * 3 : 0, i = Math.min(2, Math.floor(t)), f = t - i;
+    if (N === 1) return base[0].slice();
+    const t = K > 1 ? k / (K - 1) * (N - 1) : 0, i = Math.min(N - 2, Math.floor(t)), f = t - i;
     return base[i].map((c, ch) => Math.round(c + (base[i + 1][ch] - c) * f));
   });
 }
@@ -286,6 +369,10 @@ function syncUi(): void {
   $('pattern-note').textContent = patternById($('pattern').value).note;
   $('softlim').disabled = !$('soften').checked;
   $('own-size').hidden = $('ratio').value !== 'custom';
+  const pv = $('palette').value, pn = $('pal-name').value.trim(), K = patternById($('pattern').value).colors.length;
+  $('pal-del').disabled = !ownPalette(pv);
+  $('pal-save').textContent = pn && ownPalettes.some((q) => q.name === pn) ? `「${pn}」を上書きする` : '配色に足す';
+  $('pal-note').textContent = `いま${draft.length}色。この柄は${K}色を使う。数が違うときは、色のあいだを補って配る。${palMsg}`;
   const [ew, eh] = dims(exportLong()); $('out-size').textContent = `書き出しの大きさ：${ew}×${eh} px`;
   $('squeeze').disabled = !cmp && !(m === 'radial' || m === 'elastic');
   $('fit').disabled = !cmp && m !== 'radial';
@@ -336,11 +423,13 @@ viewport.addEventListener('pointerup', endDrag); viewport.addEventListener('poin
 new ResizeObserver(() => layoutView()).observe(viewport);
 
 // ---- URL との行き来 ----
-const FIELDS = [...SLIDERS, 'method', 'compare', 'assign', 'ratio', 'ow', 'oh', 'palette', 'pattern', 'split'];
+const FIELDS = [...SLIDERS, 'size', 'method', 'compare', 'assign', 'ratio', 'ow', 'oh', 'palette', 'pattern', 'split'];
 function writeUrl(): void {
   const q = new URLSearchParams();
   q.set('groups', [...picked].join(','));
   for (const id of FIELDS) { const el = $(id); if (el.value !== el.dataset.initial) q.set(id, el.value); }
+  const pv = $('palette').value; // 自分の配色は、名前ではなく色そのものを書く。ほかのブラウザでも同じ色で開ける
+  if (pv === 'custom' || pv.startsWith('my:')) { q.set('palette', 'custom'); q.set('colors', (paletteBase() || draft).map((h) => h.slice(1)).join('-')); }
   if (!$('fitblob').checked) q.set('fitblob', '0');
   if (!$('smooth').checked) q.set('smooth', '0');
   if (!$('soft').checked) q.set('soft', '0');
@@ -362,6 +451,15 @@ function rememberDefaults(): void { for (const id of FIELDS) $(id).dataset.initi
 function applyQuery(text: string): void {
   const q = new URLSearchParams(text);
   for (const id of FIELDS) { const el = $(id), v = q.get(id); el.value = v !== null ? v : el.dataset.initial || el.value; }
+  fixSize(); // URL の size が 0 や数字でないときも落ちないように
+  const cs = (q.get('colors') || '').split('-').filter((h) => /^[0-9a-f]{6}$/i.test(h)).slice(0, PAL_MAX).map((h) => `#${h.toLowerCase()}`);
+  if (cs.length) draft = cs;
+  if ($('palette').value === 'custom') { // 同じ色の配色をすでに足してあれば、それを選ぶ
+    const same = ownPalettes.find((p) => p.colors.join() === draft.join());
+    if (same) { $('palette').value = `my:${same.name}`; $('pal-name').value = same.name; }
+    $<HTMLDetailsElement>('pal-box').open = true;
+  }
+  if (!$('palette').value) $('palette').value = 'native'; // 知らない配色の名前は、柄の本来の色に読み替える
   for (const id of ['fitblob', 'smooth', 'soft', 'trim', 'soften']) $(id).checked = q.get(id) !== '0';
   $('edges').checked = q.get('edges') === '1';
   seed = +(q.get('seed') || 0) || SEED0;
@@ -388,7 +486,7 @@ function syncHistory(): void { $('undo').disabled = histAt <= 0; $('redo').disab
 function travel(step: number): void {
   const to = histAt + step; if (to < 0 || to >= hist.length) return;
   histAt = to; replaying = true;
-  applyQuery(hist[histAt]); drawChips(); syncUi(); syncHistory();
+  applyQuery(hist[histAt]); drawPalEditor(); drawChips(); syncUi(); syncHistory();
   saveText('history', JSON.stringify({ hist, at: histAt }));
   void draw().finally(() => { replaying = false; });
 }
@@ -407,11 +505,39 @@ window.addEventListener('keydown', (ev) => {
 
 // スライダーは、動かしているあいだは数字だけ変え、離したときに描き直す。動かすたびに描くと、重い描画が何度も走る。
 // 選択欄とチェックは、変えたらすぐ描き直す。名前の入力、ファイル選び、画素数の入力では描き直さない
-const QUIET = ['ownname', 'own', 'ownkind', 'ow', 'oh'];
+// 色選びと配色の名前（#pal-box の中）は、表示だけ合わせる。描き直しは自分のリスナーでやる
+const QUIET = ['ownname', 'own', 'ownkind', 'ow', 'oh', 'size'];
 const isSlider = (t: EventTarget | null): boolean => t instanceof HTMLInputElement && t.type === 'range';
-$('sheet').addEventListener('input', (ev) => { if (QUIET.includes((ev.target as HTMLElement).id)) return; syncUi(); if (!isSlider(ev.target)) void draw(); });
+$('sheet').addEventListener('input', (ev) => { if (QUIET.includes((ev.target as HTMLElement).id)) return; syncUi(); if ((ev.target as HTMLElement).closest('#pal-box')) return; if (!isSlider(ev.target)) void draw(); });
 $('sheet').addEventListener('change', (ev) => { if (isSlider(ev.target)) void draw(); });
 for (const id of ['ow', 'oh']) $(id).addEventListener('change', () => { $(id).value = String(clampPx($(id).value)); syncUi(); void draw(); }); // 数字は打ち終わってから描き直す
+$('size').addEventListener('change', () => { fixSize(); syncUi(); void draw(); });
+$('size-up').addEventListener('click', () => stepSize(1.25));
+$('size-down').addEventListener('click', () => stepSize(1 / 1.25));
+// 足した配色を選んだら、その色を下の色選びに映す。そこから直して、同じ名前で上書きもできる
+$('palette').addEventListener('input', () => {
+  const v = $('palette').value, own = ownPalette(v);
+  if (own) { draft = [...own.colors]; $('pal-name').value = own.name; drawPalEditor(); }
+  if (own || v === 'custom') $<HTMLDetailsElement>('pal-box').open = true;
+});
+$('pal-save').addEventListener('click', () => {
+  let name = $('pal-name').value.trim(), k = 1;
+  if (!name) do name = `配色 ${k++}`; while (ownPalettes.some((p) => p.name === name));
+  const at = ownPalettes.findIndex((p) => p.name === name), entry = { name, colors: [...draft] };
+  if (at >= 0) ownPalettes[at] = entry; else ownPalettes.push(entry);
+  storePalettes(); drawPaletteOptions();
+  $('palette').value = `my:${name}`; $('pal-name').value = name;
+  syncUi(); void draw();
+});
+// 消しても、色は下の色選びに残る。間違えて消したら、もう一度「配色に足す」で戻せる
+$('pal-del').addEventListener('click', () => {
+  const own = ownPalette($('palette').value);
+  if (!own) return;
+  ownPalettes = ownPalettes.filter((p) => p !== own);
+  storePalettes(); drawPaletteOptions();
+  $('palette').value = 'custom';
+  syncUi(); void draw();
+});
 $('reseed').addEventListener('click', () => { seed = Math.floor(Math.random() * 90000) + 10000; void draw(); });
 $('shuffle').addEventListener('click', () => { shuf = Math.floor(Math.random() * 90000) + 10000; void draw(); });
 // ---- 自分の画像を足す：選ぶ → 背景除去のしかた → 名前 → 追加 ----
@@ -488,10 +614,12 @@ for (const kind of ['その他', '実物', '軍用', '狩猟'] as const) {
 }
 all = [...(await loadManifests()), ...(await restoreOwnImages())]; // 前に足した画像も読み戻す
 groups = [...new Set(all.map((s) => s.group))];
+loadPalettes(); drawPaletteOptions(); // 配色の一覧を先に作る。設定を当てる前に選択肢が要る
 rememberDefaults();
 // URL に指定があればそれを使う。なければ、前に閉じたときの状態から始める
 const startText = location.search.length > 1 ? location.search.slice(1) : loadText('last') || '';
 try { const saved = JSON.parse(loadText('history') || 'null'); if (saved && Array.isArray(saved.hist)) { hist = saved.hist.filter((x: unknown) => typeof x === 'string').slice(-HIST_MAX); histAt = Math.min(hist.length - 1, Math.max(-1, saved.at | 0)); } } catch { /* 壊れた履歴は使わない */ }
 if (startText) applyQuery(startText); else applyQuery('');
 if (!startText) { picked.clear(); for (const gname of groups.slice(0, 1)) picked.add(gname); } // 何も覚えていなければ、先頭のセット（公開版では sample）
+drawPalEditor();
 drawChips(); syncUi(); syncHistory(); void draw();

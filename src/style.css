@@ -77,3 +77,18 @@ button:disabled { opacity: 0.45; cursor: default; }
 .size-pair[hidden] { display: none; }
 .size-pair label { display: flex; align-items: center; gap: 4px; }
 .size-pair input { width: 76px; padding: 6px 8px; background: var(--panel); color: var(--ink); border: 1px solid var(--line); border-radius: 4px; font: inherit; }
+
+/* ブロブの大きさ：数字の入力と − ＋ */
+.stepper { display: flex; align-items: center; gap: 6px; margin-top: 4px; font-size: 12px; color: var(--dim); }
+.stepper button { width: 36px; flex: none; padding: 6px 0; }
+.stepper input { flex: 1; min-width: 0; padding: 6px 8px; background: var(--panel); color: var(--ink); border: 1px solid var(--line); border-radius: 4px; font: inherit; font-variant-numeric: tabular-nums; }
+.note[hidden] { display: none; }
+.note.warn { color: var(--accent); }
+
+/* 自分の配色：色を1つずつ選ぶ */
+.swatches { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.swatch { display: inline-flex; align-items: center; border: 1px solid var(--line); border-radius: 4px; overflow: hidden; }
+.swatch input[type=color] { width: 34px; height: 30px; padding: 0; border: 0; background: none; cursor: pointer; }
+.swatch button { width: 22px; height: 30px; padding: 0; border: 0; border-left: 1px solid var(--line); border-radius: 0; color: var(--dim); }
+.swatches > button { width: auto; padding: 4px 10px; font-size: 12px; }
+.row > input[type=text] { width: 100%; margin-top: 4px; padding: 6px 8px; background: var(--panel); color: var(--ink); border: 1px solid var(--line); border-radius: 4px; font: inherit; }

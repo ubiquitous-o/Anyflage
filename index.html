@@ -76,14 +76,33 @@
       <legend><span class="num">2</span>迷彩を選ぶ</legend>
       <select id="pattern" aria-label="柄"></select>
       <p id="pattern-note" class="note"></p>
-      <div class="row"><label for="size">ブロブの大きさ <output id="o-size"></output></label><input type="range" id="size" min="6" max="400" value="17"></div>
+      <div class="row"><label for="size">ブロブの大きさ</label>
+        <div class="stepper">
+          <button type="button" id="size-down" aria-label="ブロブを小さく" title="小さく（÷1.25）">−</button>
+          <input type="number" id="size" step="any" value="17" inputmode="decimal">
+          <span aria-hidden="true">%</span>
+          <button type="button" id="size-up" aria-label="ブロブを大きく" title="大きく（×1.25）">＋</button>
+        </div>
+      </div>
+      <p id="size-note" class="note" hidden></p>
       <div class="row"><label for="palette">配色</label>
         <select id="palette">
           <option value="native">柄の本来の色</option>
           <option value="woodland">ウッドランド</option><option value="desert">デザート</option>
           <option value="urban">アーバン</option><option value="navy">ネイビー</option><option value="pop">ポップ</option>
+          <option value="custom">作りかけの配色（下で作る）</option>
         </select>
       </div>
+      <details id="pal-box" class="more">
+        <summary>自分の配色を作る</summary>
+        <div id="pal-colors" class="swatches"></div>
+        <p id="pal-note" class="note"></p>
+        <div class="row"><label for="pal-name">配色に名前を付ける</label><input type="text" id="pal-name" placeholder="空なら 配色 1、配色 2…" maxlength="20" autocomplete="off"></div>
+        <div class="pair">
+          <button type="button" id="pal-save">配色に足す</button>
+          <button type="button" id="pal-del" disabled>選んだ配色を消す</button>
+        </div>
+      </details>
       <div class="row"><label for="tint">迷彩色の強さ <output id="o-tint"></output></label><input type="range" id="tint" min="0" max="100" value="40"></div>
       <button type="button" id="reseed">形を作り直す</button>
       <details class="more">

@@ -6,8 +6,8 @@
 import type { Raster } from './engine/types.ts';
 
 /** セットの種類。asis は切り抜き済み（背景除去しない） */
-export type CutKind = 'asis' | 'face' | 'person' | 'object';
-export const CUT_LABELS: Record<CutKind, string> = { asis: '切り抜き済み（背景除去しない）', face: '人の顔だけ', person: '人の全身', object: 'もの・キャラ' };
+export type CutKind = 'asis' | 'skin' | 'face' | 'person' | 'object';
+export const CUT_LABELS: Record<CutKind, string> = { asis: '切り抜き済み（背景除去しない）', skin: '人の顔だけ（髪なし）', face: '人の顔と髪', person: '人の全身', object: 'もの・キャラ' };
 
 const BASE = import.meta.env.BASE_URL;
 
@@ -38,11 +38,12 @@ function loadPerson(): Promise<Segmenter> {
   })().catch((e) => { personSeg = null; throw e; }));
 }
 /** 層の番号：0 背景、1 髪、2 体の肌、3 顔の肌、4 服、5 小物 */
-async function personMask(canvas: HTMLCanvasElement, faceOnly: boolean): Promise<Float32Array> {
+async function personMask(canvas: HTMLCanvasElement, part: 'skin' | 'face' | 'person'): Promise<Float32Array> {
   const seg = await loadPerson(), res = seg.segment(canvas), ms = res.confidenceMasks;
   if (!ms || ms.length < 4) { res.close(); throw new Error('人の切り抜きに失敗した'); }
   const mw = ms[0].width, mh = ms[0].height, bg = ms[0].getAsFloat32Array(), hair = ms[1].getAsFloat32Array(), face = ms[3].getAsFloat32Array(), m = new Float32Array(mw * mh);
-  for (let i = 0; i < m.length; i++) m[i] = faceOnly ? hair[i] + face[i] : 1 - bg[i];
+  // skin：顔の肌だけ。face：顔の肌と髪。person：背景以外の全部
+  for (let i = 0; i < m.length; i++) m[i] = part === 'skin' ? face[i] : part === 'face' ? hair[i] + face[i] : 1 - bg[i];
   res.close();
   return upscale(m, mw, mh, canvas.width, canvas.height);
 }
@@ -84,7 +85,7 @@ async function objectMask(canvas: HTMLCanvasElement): Promise<Float32Array> {
 export async function cutOut(canvas: HTMLCanvasElement, kind: CutKind): Promise<Raster> {
   const w = canvas.width, h = canvas.height, g = canvas.getContext('2d', { willReadFrequently: true })!, img = g.getImageData(0, 0, w, h);
   if (kind === 'asis') return { w, h, data: img.data };
-  const m = kind === 'object' ? await objectMask(canvas) : await personMask(canvas, kind === 'face');
+  const m = kind === 'object' ? await objectMask(canvas) : await personMask(canvas, kind);
   const d = img.data;
   let x0 = w, y0 = h, x1 = -1, y1 = -1;
   for (let y = 0, i = 0; y < h; y++) for (let x = 0; x < w; x++, i++) {

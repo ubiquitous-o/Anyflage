@@ -159,8 +159,23 @@
             <option value="ig-landscape">フィード 横 1.91:1 1080×566</option>
             <option value="ig-story">ストーリーズ／リール 9:16 1080×1920</option>
           </optgroup>
+          <optgroup label="X（Twitter）（この画素数で書き出す）">
+            <option value="x-landscape">ポスト 横 16:9 1600×900</option>
+            <option value="x-square">ポスト 正方形 1080×1080</option>
+            <option value="x-portrait">ポスト 縦 4:5 1080×1350</option>
+            <option value="x-header">ヘッダー 3:1 1500×500</option>
+          </optgroup>
+          <optgroup label="自分で決める">
+            <option value="custom">好きな大きさ（画素で指定）</option>
+          </optgroup>
         </select>
       </div>
+      <div id="own-size" class="size-pair" hidden>
+        <label>幅 <input type="number" id="ow" min="64" max="8000" step="1" value="1920" inputmode="numeric"> px</label>
+        <span aria-hidden="true">×</span>
+        <label>高さ <input type="number" id="oh" min="64" max="8000" step="1" value="1080" inputmode="numeric"> px</label>
+      </div>
+      <p id="out-size" class="note"></p>
       <button type="button" class="primary" id="save">PNGを保存</button>
     </fieldset>
   </form>

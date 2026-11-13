@@ -21,9 +21,20 @@ const PALETTES: Record<string, string[]> = {
 const RATIOS: Record<string, [number, number]> = {
   '1:1': [1, 1], '3:4': [3, 4], '4:3': [4, 3], '9:16': [9, 16], '16:9': [16, 9], '4:5': [4, 5],
   'ig-square': [1080, 1080], 'ig-portrait': [1080, 1350], 'ig-tall': [1080, 1440], 'ig-landscape': [1080, 566], 'ig-story': [1080, 1920],
+  'x-landscape': [1600, 900], 'x-square': [1080, 1080], 'x-portrait': [1080, 1350], 'x-header': [1500, 500],
 };
+/** 自分で決める大きさの下限と上限（画素） */
+const OWN_MIN = 64, OWN_MAX = 8000;
+const clampPx = (v: string): number => Math.min(OWN_MAX, Math.max(OWN_MIN, Math.round(+v) || OWN_MIN));
+/** いまの出力の縦横。custom のときは入力欄の画素数 */
+function ratioNow(): [number, number] {
+  const k = $('ratio').value;
+  return k === 'custom' ? [clampPx($('ow').value), clampPx($('oh').value)] : RATIOS[k] || RATIOS['1:1'];
+}
+/** 画素数そのままで書き出す選択か（Instagram 用、X 用、自分で決める） */
+const exactSize = (): boolean => /^(ig-|x-|custom$)/.test($('ratio').value);
 /** 書き出しの長辺。Instagram 用は仕様の画素数、ほかは EXPORT */
-function exportLong(): number { const k = $('ratio').value, r = RATIOS[k] || RATIOS['1:1']; return k.startsWith('ig-') ? Math.max(r[0], r[1]) : EXPORT; }
+function exportLong(): number { const r = ratioNow(); return exactSize() ? Math.max(r[0], r[1]) : EXPORT; }
 const LABELS: Record<Method, string> = {
   radial: '放射', harmonic: '調和写像', elastic: '詰め物', area: '面積均等', contour: '輪郭追従',
   areaharm: '輪郭は面積・内側は調和', diffuse: '密度拡散', energy: '歪みエネルギー最小', blend: '単純に混ぜる', carve: '形にカービング',
@@ -61,7 +72,7 @@ function colors(patternId: string): RGB[] {
   });
 }
 function dims(longEdge: number): [number, number] {
-  const r = RATIOS[$('ratio').value] || RATIOS['1:1'], m = Math.max(r[0], r[1]);
+  const r = ratioNow(), m = Math.max(r[0], r[1]);
   return [Math.round(longEdge * r[0] / m), Math.round(longEdge * r[1] / m)];
 }
 function setStatus(t: string): void { $('status').textContent = t; }
@@ -249,10 +260,13 @@ async function draw(): Promise<void> {
 function drawChips(): void {
   $('empty').hidden = all.length > 0;
   if (!all.length) $<HTMLDetailsElement>('own-box').open = true; // 画像セットがないときは、足す手順を開いておく
-  // 枚数に決め打ちの上限は置かない。いちばん多いセットの枚数まで動かせる
-  const most = Math.max(1, ...groups.map((gname) => all.filter((s) => s.group === gname).length));
-  $('per').max = String(most);
-  if (+$('per').value > most) $('per').value = String(most);
+  // 枚数の上限は、いま選んでいるセットのうち、いちばん多いセットの枚数。右端まで動かせば、選んだセットを全部使う。
+  // 上限いっぱいにしていたときは、セットを選び直しても上限に付いていく（「全部使う」のまま）
+  const sel = groups.filter((gname) => picked.has(gname)), per = $('per'), wasAll = +per.value >= +per.max && +per.max < 9999;
+  const most = Math.max(1, ...(sel.length ? sel : groups).map((gname) => all.filter((s) => s.group === gname).length));
+  per.max = String(most);
+  if (wasAll || +per.value > most) per.value = String(most);
+  syncPer();
   const box = $<HTMLDivElement>('groups'); box.textContent = '';
   for (const gname of groups) {
     const b = document.createElement('button'); b.type = 'button'; b.textContent = gname;
@@ -262,12 +276,16 @@ function drawChips(): void {
     box.appendChild(b);
   }
 }
+/** 枚数の表示。上限いっぱいなら「全部」と出す */
+function syncPer(): void { const per = $('per'); $('o-per').textContent = +per.value >= +per.max && +per.max > 1 ? `全部（${per.value}枚）` : `${per.value}枚`; }
 function syncUi(): void {
-  for (const id of SLIDERS) $(`o-${id}`).textContent = id === 'per' ? `${$(id).value}枚` : id === 'softlim' ? `${$(id).value}升` : `${$(id).value}%`;
+  for (const id of SLIDERS) if (id === 'per') syncPer(); else $(`o-${id}`).textContent = id === 'softlim' ? `${$(id).value}升` : `${$(id).value}%`;
   const m = $('method').value as Method, cv = $('compare').value, cmp = cv === '10';
   $('method').disabled = cmp; $('pattern').disabled = cv === 'patterns';
   $('pattern-note').textContent = patternById($('pattern').value).note;
   $('softlim').disabled = !$('soften').checked;
+  $('own-size').hidden = $('ratio').value !== 'custom';
+  const [ew, eh] = dims(exportLong()); $('out-size').textContent = `書き出しの大きさ：${ew}×${eh} px`;
   $('squeeze').disabled = !cmp && !(m === 'radial' || m === 'elastic');
   $('fit').disabled = !cmp && m !== 'radial';
   $('mix').disabled = !cmp && !HYBRID.includes(m);
@@ -317,7 +335,7 @@ viewport.addEventListener('pointerup', endDrag); viewport.addEventListener('poin
 new ResizeObserver(() => layoutView()).observe(viewport);
 
 // ---- URL との行き来 ----
-const FIELDS = [...SLIDERS, 'method', 'compare', 'assign', 'ratio', 'palette', 'pattern', 'split'];
+const FIELDS = [...SLIDERS, 'method', 'compare', 'assign', 'ratio', 'ow', 'oh', 'palette', 'pattern', 'split'];
 function writeUrl(): void {
   const q = new URLSearchParams();
   q.set('groups', [...picked].join(','));
@@ -350,7 +368,13 @@ function readUrl(): void {
   for (const gname of want !== null ? want.split(',') : groups.slice(0, 2)) if (groups.includes(gname)) picked.add(gname);
 }
 
-$('sheet').addEventListener('input', (ev) => { const id = (ev.target as HTMLElement).id; if (id === 'ownname' || id === 'own' || id === 'ownkind') return; syncUi(); void draw(); }); // 名前の入力とファイル選びでは描き直さない
+// スライダーは、動かしているあいだは数字だけ変え、離したときに描き直す。動かすたびに描くと、重い描画が何度も走る。
+// 選択欄とチェックは、変えたらすぐ描き直す。名前の入力、ファイル選び、画素数の入力では描き直さない
+const QUIET = ['ownname', 'own', 'ownkind', 'ow', 'oh'];
+const isSlider = (t: EventTarget | null): boolean => t instanceof HTMLInputElement && t.type === 'range';
+$('sheet').addEventListener('input', (ev) => { if (QUIET.includes((ev.target as HTMLElement).id)) return; syncUi(); if (!isSlider(ev.target)) void draw(); });
+$('sheet').addEventListener('change', (ev) => { if (isSlider(ev.target)) void draw(); });
+for (const id of ['ow', 'oh']) $(id).addEventListener('change', () => { $(id).value = String(clampPx($(id).value)); syncUi(); void draw(); }); // 数字は打ち終わってから描き直す
 $('reseed').addEventListener('click', () => { seed = Math.floor(Math.random() * 90000) + 10000; void draw(); });
 $('shuffle').addEventListener('click', () => { shuf = Math.floor(Math.random() * 90000) + 10000; void draw(); });
 // ---- 自分の画像を足す：選ぶ → 背景除去のしかた → 名前 → 追加 ----

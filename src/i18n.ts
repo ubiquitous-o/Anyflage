@@ -63,7 +63,7 @@ const EN: Record<string, string> = {
   'ゆらぎ（ばらばらに揺れる）': 'Sway (every part drifts on its own)', '流れ（液体のように回る）': 'Flow (swirls like liquid)', '呼吸（ブロブごとにふくらむ・しぼむ）': 'Breathe (each blob swells and shrinks)',
   '波（一方向へ渡る）': 'Wave (travels in one direction)', '二重ゆがめ（強くうねる）': 'Double warp (strong swirls)',
   '重ねる動かし方': 'Second motion', '重ねない': 'None', '重ねる動きの大きさ': 'Second motion amount',
-  'ラバランプ（ブロブが生まれ、くっつき、ちぎれる）': 'Lava lamp (blobs appear, merge and split)', '溶け具合': 'Melt', '侵食の早さ': 'Invasion speed', 'ラバランプを描いている…': 'Drawing the lava lamp…',
+  'ラバランプ（ブロブが生まれ、くっつき、ちぎれる）': 'Lava lamp (blobs appear, merge and split)', 'MP4 動画': 'MP4 video', 'PNG 画像': 'PNG image', '溶け具合': 'Melt', '侵食の早さ': 'Invasion speed', 'ラバランプを描いている…': 'Drawing the lava lamp…',
   'ラバランプは、毎コマ迷彩を作り直して、画像を押し込み直す。遅い。画面には、先に毎秒15コマぶんを描いてから出す。書き出しは全部のコマを描くので、数分かかる。「Anyflage 標準」の柄は、ブロブが生まれてくっつく。ほかの柄は、形が大きく流れてちぎれる。リピートと比較表示では使えない。': 'The lava lamp rebuilds the camouflage and squeezes the images in again for every frame. It is slow. The preview first draws 15 frames per second, then plays them. Export draws every frame and takes minutes. With the "Anyflage standard" pattern, blobs appear and merge. With other patterns, shapes flow widely and split. It does not work with tileable images or comparisons.',
   '動きの大きさ': 'Motion amount', '動きの細かさ': 'Motion detail', '1周の長さ': 'Loop length', 'MP4を保存': 'Save MP4',
   '動画にする絵を描いている…': 'Drawing the image for the video…', '動画を作れなかった。': 'Could not create the video.',

@@ -599,10 +599,39 @@ function syncMotion(): void {
   if (!motion?.ready && drawn) motionPicture();
   if (!motionRaf) motionRaf = requestAnimationFrame(motionFrame);
 }
+// ---- ファイルに保存する ----
+/** ファイル名に付ける、いまの日時。年月日-時分秒。同じ設定で何度書き出しても、名前が重ならない */
+function stamp(): string {
+  const d = new Date(), z = (v: number): string => String(v).padStart(2, '0');
+  return `${d.getFullYear()}${z(d.getMonth() + 1)}${z(d.getDate())}-${z(d.getHours())}${z(d.getMinutes())}${z(d.getSeconds())}`;
+}
+type Saver = (blob: Blob) => Promise<void>;
+interface SaveHandle { createWritable(): Promise<{ write(b: Blob): Promise<void>; close(): Promise<void> }> }
+/**
+ * 保存先を選んでもらう。返すのは、中身を渡すとそこへ書く関数。やめたら null。
+ * 保存先を選ぶ窓は、ボタンを押してすぐでないと開けない。だから書き出しの計算より前に呼ぶ。
+ * この窓を出せないブラウザ（Safari、Firefox）では、いつものダウンロードになる（保存先はブラウザの設定どおり）。
+ */
+async function pickSave(name: string, desc: string, mime: string, ext: string): Promise<Saver | null> {
+  const win = window as unknown as { showSaveFilePicker?: (o: unknown) => Promise<SaveHandle> };
+  if (win.showSaveFilePicker) {
+    try {
+      const h = await win.showSaveFilePicker({ suggestedName: name, types: [{ description: tr(desc), accept: { [mime]: [ext] } }] });
+      return async (blob) => { const w = await h.createWritable(); await w.write(blob); await w.close(); };
+    } catch (e) {
+      if (e instanceof DOMException && e.name === 'AbortError') return null; // 窓を閉じた
+      console.warn('保存先を選ぶ窓を出せなかった。ダウンロードにする', e);
+    }
+  }
+  return async (blob) => { const a = document.createElement('a'), url = URL.createObjectURL(blob); a.href = url; a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(url), 60000); };
+}
 $('save-video').addEventListener('click', async () => {
   if (exporting) return;
+  exporting = true; // 保存先を選んでいるあいだも、二度押しと描き直しを止める
+  const save = await pickSave(`anyflage-${seed}-${stamp()}.mp4`, 'MP4 動画', 'video/mp4', '.mp4');
+  if (!save) { exporting = false; if (wanted) void draw(); return; }
   const btn = $('save-video'), secs = +$('msec').value, N = Math.round(secs * VIDEO_FPS);
-  exporting = true; btn.disabled = true; $('save').disabled = true; btn.textContent = '書き出している…';
+  btn.disabled = true; $('save').disabled = true; btn.textContent = '書き出している…';
   setStatus(''); setBusy('動画にする絵を描いている…');
   await paintNow();
   let m: Motion | null = null;
@@ -632,8 +661,7 @@ $('save-video').addEventListener('click', async () => {
     setBusy('ファイルにしている…');
     await out.finalize();
     if (!target.buffer) throw new Error('動画を作れなかった。');
-    const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([target.buffer], { type: 'video/mp4' }));
-    a.download = `anyflage-${seed}.mp4`; a.click();
+    await save(new Blob([target.buffer], { type: 'video/mp4' }));
     done(`保存した。${W}×${H} px・${secs}秒`);
   } catch (e) { done(e instanceof Error ? e.message : String(e)); }
 });
@@ -805,20 +833,21 @@ $('ownforget').addEventListener('click', async () => { // 押し間違いで消�
 $('showsrc').addEventListener('change', () => { showSources = $('showsrc').checked; void draw(); });
 $('save').addEventListener('click', async () => {
   if (exporting) return;
+  exporting = true; // 保存先を選んでいるあいだも、二度押しと描き直しを止める
+  const save = await pickSave(`anyflage-${$('compare').value ? 'compare-' : ''}${seed}-${stamp()}.png`, 'PNG 画像', 'image/png', '.png');
+  if (!save) { exporting = false; if (wanted) void draw(); return; }
   const btn = $('save'), [ew, eh] = dims(exportLong());
-  exporting = true; btn.disabled = true; btn.textContent = '書き出している…';
+  btn.disabled = true; btn.textContent = '書き出している…';
   setStatus(''); setBusy(`書き出している…（${ew}×${eh} px。数秒かかる）`);
   await paintNow();
   const done = (msg: string): void => { exporting = false; btn.disabled = false; btn.textContent = 'PNGを保存'; setBusy(null); setStatus(msg); if (wanted) void draw(); }; // 書き出しのあいだに設定が変わっていたら、ここで描き直す
   try {
     const c = await produce(exportLong(), false);
     setBusy('ファイルにしている…'); await paintNow();
-    c.toBlob((blob) => {
-      if (!blob) { done('画像を作れなかった。'); return; }
-      const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
-      a.download = `anyflage-${$('compare').value ? 'compare-' : ''}${seed}.png`; a.click();
-      done(`保存した。${c.width}×${c.height} px`);
-    }, 'image/png');
+    const blob = await new Promise<Blob | null>((r) => c.toBlob(r, 'image/png'));
+    if (!blob) { done('画像を作れなかった。'); return; }
+    await save(blob);
+    done(`保存した。${c.width}×${c.height} px`);
   } catch (e) { done(e instanceof Error ? e.message : String(e)); }
 });
 

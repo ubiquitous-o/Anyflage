@@ -8,10 +8,12 @@
 <link rel="stylesheet" href="/src/style.css">
 </head>
 <body>
+<canvas id="backdrop" width="8" height="8" aria-hidden="true"></canvas>
 <main>
   <section class="stage">
     <div id="viewport" class="viewport" title="ホイールで拡大縮小、ドラッグで移動、ダブルクリックで全体と等倍を切り替え">
       <canvas id="view" width="720" height="720"></canvas>
+      <div class="before-tag" aria-hidden="true">前の絵</div>
       <div id="busy" class="busy" hidden aria-live="polite"><span class="spin" aria-hidden="true"></span><span id="busy-text"></span></div>
     </div>
     <div class="viewbar">
@@ -26,11 +28,24 @@
         <button type="button" id="undo" title="元に戻す（⌘Z／Ctrl+Z）" disabled>↶ 戻す</button>
         <button type="button" id="redo" title="やり直す（⇧⌘Z／Ctrl+Y）" disabled>↷ やり直す</button>
       </div>
+      <div class="zoom">
+        <button type="button" id="before" title="押しているあいだ、描き直す前の絵を出す（キーボードは B）" disabled>前の絵（B を押しているあいだ）</button>
+      </div>
       <p class="stats"><span id="s-info"></span> <span id="status" role="status"></span></p>
     </div>
   </section>
   <form id="sheet" class="sheet" onsubmit="return false">
-    <h1>Anyflage</h1>
+    <div class="head">
+      <h1>Anyflage</h1>
+      <a class="gh" href="https://github.com/ubiquitous-o/Anyflage" target="_blank" rel="noopener" title="GitHub でソースを見る">
+        <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg>
+        <span>GitHub</span>
+      </a>
+      <select id="lang" aria-label="Language / 言語" data-noi18n>
+        <option value="ja">日本語</option>
+        <option value="en">English</option>
+      </select>
+    </div>
 
     <fieldset class="stage-box">
       <legend><span class="num">1</span>画像セットを選ぶ</legend>
@@ -39,7 +54,7 @@
       <div class="row"><label for="per">1セットあたりの枚数 <output id="o-per"></output></label><input type="range" id="per" min="1" max="9999" value="6"></div>
       <div class="pair">
         <button type="button" id="shuffle">シャッフル</button>
-        <button type="button" id="showsrc" aria-pressed="false">切り抜きを見る</button>
+        <label class="switch"><input type="checkbox" id="showsrc" role="switch"><span class="knob" aria-hidden="true"></span>切り抜きを見る</label>
       </div>
       <details id="own-box" class="more">
         <summary>自分の画像を足す</summary>
@@ -201,6 +216,8 @@
         <label>高さ <input type="number" id="oh" min="64" max="8000" step="1" value="1080" inputmode="numeric"> px</label>
       </div>
       <p id="out-size" class="note"></p>
+      <label class="switch"><input type="checkbox" id="repeat" role="switch"><span class="knob" aria-hidden="true"></span>リピートできる絵にする（上下左右がつながる）</label>
+      <p id="repeat-note" class="note" hidden>プレビューは 2×2 に並べて出している。継ぎ目が見えないか確かめられる。書き出すのは1枚ぶん。大きすぎるブロブを割る処理と、隣どうしで同じ素材を避ける割り当ては、リピートでは使えない。</p>
       <button type="button" class="primary" id="save">PNGを保存</button>
     </fieldset>
   </form>

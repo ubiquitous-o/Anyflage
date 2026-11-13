@@ -2,10 +2,12 @@
 // 状態は URL の ? に書ける（例 ?groups=ヒト,ネコ&method=harmonic&compare=6&seed=48213）。
 import { Kao } from './engine/kao.ts';
 import { PATTERNS, patternById } from './engine/patterns.ts';
-import type { Camo, Method, Params, Picker, Raster, RGB } from './engine/types.ts';
+import type { Camo, Method, Params, Picker, Raster, RGB, LayerFn } from './engine/types.ts';
 import { Material } from './material.ts';
 import { addOwnImage, forgetOwnImages, loadCutout, loadManifests, restoreOwnImages } from './samples.ts';
 import { loadText, saveText } from './store.ts';
+import { initialLang, setLang, tr } from './i18n.ts';
+import type { Lang } from './i18n.ts';
 import type { CutKind } from './cutout.ts';
 import { loadSwatches } from './swatches.ts';
 import type { Sample } from './samples.ts';
@@ -226,6 +228,50 @@ function softenEdges(img: ImageData, cam: Camo): void {
     d[o] = src[o] * a + r / ow * (1 - a); d[o + 1] = src[o + 1] * a + g / ow * (1 - a); d[o + 2] = src[o + 2] * a + b / ow * (1 - a);
   }
 }
+/**
+ * 上下左右がつながる迷彩の層。幅 tw・高さ th（画素）ごとに同じ柄がくり返す。
+ * もとの柄はくり返さないので、そのまま並べると端で柄が切れる。そこで、もとの柄から2か所を切り出し、
+ * 1枚目は升目の中ほどで、2枚目は升目の端のあたりで使う。2枚の境目は、同じ周期でうねる線にする。
+ * 返す関数は、tw×th の升を2×2に敷いた、長辺 M2 の大きなキャンバスの座標で呼ばれる。
+ */
+function tileableLayer(p: Params, tw: number, th: number, M2: number): LayerFn {
+  const base = p.layerAt, seed = p.seed | 0, size = p.size, f = 1 / size, wob = p.wobble * size * 0.9, Mt = Math.max(tw, th), TAU = Math.PI * 2;
+  const at = (qx: number, qy: number): number => { // 升の中の画素 (qx, qy) の層。うねりも、エンジンと同じ式でここで掛ける
+    const nx = qx / Mt, ny = qy / Mt;
+    const wx = nx + wob * (Kao.vnoise(nx * f * 2.1, ny * f * 2.1, seed + 50) - 0.5), wy = ny + wob * (Kao.vnoise(nx * f * 2.1 + 40, ny * f * 2.1 + 40, seed + 51) - 0.5);
+    if (base) return base(nx, ny, wx, wy);
+    let L = 0; for (let k = 1; k < 4; k++) if (Kao.fbm(wx * f / 1.45 + k * 31.7, wy * f + k * 17.3, seed + k) > Kao.THR[k]) L = k; // Anyflage 標準
+    return L;
+  };
+  const mod = (t: number, n: number): number => ((t % n) + n) % n;
+  return (nx, ny) => {
+    const px = nx * M2, py = ny * M2, u = mod(px, tw), v = mod(py, th), ub = mod(px + tw / 2, tw), vb = mod(py + th / 2, th);
+    const wa = Math.min(Math.min(u, tw - u) / tw, Math.min(v, th - v) / th), wb = Math.min(Math.min(ub, tw - ub) / tw, Math.min(vb, th - vb) / th);
+    const a = TAU * px / tw, b = TAU * py / th, wave = 0.05 * (Math.sin(3 * a + 1.3) * Math.cos(2 * b) + Math.sin(5 * b + 0.4) * Math.cos(4 * a + 2.1)) + 0.03 * Math.sin(7 * a + 3 * b);
+    return wa + wave > wb ? at(u, v) : at(ub + tw * 1.37, vb + th * 2.11); // 2枚目は、もとの柄の離れた所から取る
+  };
+}
+/**
+ * リピートできる絵を1枚（W×H）作る。
+ * 2×2 ぶんの大きなキャンバスで迷彩を作り、真ん中の W×H を切り出す。升の端をまたぐブロブも、欠けずに丸ごと描ける。
+ * 左端をまたぐブロブと右端をまたぐブロブは、ちょうど W だけずれた同じ形になる。同じ鍵を持たせて、同じ素材・同じ向きで描く。
+ */
+function renderTile(W: number, H: number, src: Picker[], p: Params): ImageData {
+  const W2 = W * 2, H2 = H * 2, x0 = W >> 1, y0 = H >> 1;
+  // 大きすぎるブロブを割る処理は、場所によって割り方が変わるので使わない。えぐれ切りは、正方形のときだけ写しどうしで同じ所が切れる
+  const p2: Params = { ...p, layerAt: tileableLayer(p, W, H, Math.max(W2, H2)), noSplit: true, split: 'none', notch: W === H ? p.notch : 0, flatBelow: (p.flatBelow || 0) / 4, clip: [x0 - 1, y0 - 1, x0 + W, y0 + H] };
+  const cam = Kao.buildCamo(W2, H2, p2), cm = cam.comps, keys = new Int32Array(cm.count);
+  for (let c = 0; c < cm.count; c++) keys[c] = (Math.imul(cm.x0[c] % W, 73856093) ^ Math.imul(cm.y0[c] % H, 19349663) ^ Math.imul(cm.area[c], 83492791)) & 0x7fffffff;
+  cam.keys = keys;
+  const big = new ImageData(W2, H2);
+  Kao.renderCamo(big.data, cam, src, colors(p.pattern || 'blob'), p2);
+  if ($('soft').checked) softenEdges(big, cam);
+  if ($('edges').checked) { const ids = cam.ids, d = big.data; for (let y = y0; y < y0 + H; y++) for (let x = x0, i = y * W2 + x0; x < x0 + W; x++, i++) if (ids[i] !== ids[i + 1] || ids[i] !== ids[i + W2]) { d[i * 4] = 255; d[i * 4 + 1] = 255; d[i * 4 + 2] = 255; } }
+  const out = new ImageData(W, H);
+  for (let y = 0; y < H; y++) out.data.set(big.data.subarray(((y0 + y) * W2 + x0) * 4, ((y0 + y) * W2 + x0 + W) * 4), y * W * 4);
+  camo = cam; // 画面下のブロブ数の表示用
+  return out;
+}
 function renderOne(W: number, H: number, src: Picker[], p: Params, reuse: boolean): ImageData {
   const img = new ImageData(W, H);
   const cam = getCamo(W, H, p, reuse);
@@ -271,7 +317,7 @@ function renderSheet(tile: number, cols: number, tiles: Tile[], src: Picker[], r
     g.putImageData(renderOne(tile, tile, src, t.p, reuse), x, y);
     g.font = `700 ${fs}px "Hiragino Sans", sans-serif`; g.textBaseline = 'top';
     g.fillStyle = 'rgba(20,23,15,.82)'; g.fillRect(x, y, g.measureText(t.label).width + fs, fs * 1.7);
-    g.fillStyle = '#F3F4EA'; g.fillText(t.label, x + fs / 2, y + fs * 0.35);
+    g.fillStyle = '#F3F4EA'; g.fillText(tr(t.label), x + fs / 2, y + fs * 0.35);
   });
   g.fillStyle = 'rgba(20,23,15,.82)';
   for (let k = 1; k < cols; k++) g.fillRect(k * tile - 1, 0, 2, c.height);
@@ -290,7 +336,7 @@ async function renderSources(): Promise<HTMLCanvasElement> {
     const s = (cell - 24) / Math.max(r.w, r.h), x = (k % cols) * cell, y = Math.floor(k / cols) * cell;
     g.drawImage(t, x + (cell - r.w * s) / 2, y + (cell - r.h * s) / 2, r.w * s, r.h * s);
     g.font = '12px "Hiragino Sans", sans-serif'; g.fillStyle = '#F3F4EA'; g.textBaseline = 'top';
-    g.fillText(`${list[k].group} ${list[k].label}`, x + 6, y + 4);
+    g.fillText(`${tr(list[k].group)} ${list[k].label}`, x + 6, y + 4);
   }
   return c;
 }
@@ -313,7 +359,15 @@ async function produce(longEdge: number, reuse: boolean): Promise<HTMLCanvasElem
   }
   if (cmp === 'patterns') return renderSheet(Math.round(longEdge / 3), bestCols(PATTERNS.length), PATTERNS.map((pt) => ({ label: pt.name, p: params(pt.id) })), src, false);
   if (cmp) { const p = params(); return renderSheet(Math.round(longEdge / 2.5), bestCols(TILES[cmp].length), TILES[cmp].map((m) => ({ label: LABELS[m], p: { ...p, method: m } })), src, reuse); }
-  const [W, H] = dims(longEdge), c = document.createElement('canvas'); c.width = W; c.height = H;
+  const [W, H] = dims(longEdge), c = document.createElement('canvas');
+  if ($('repeat').checked) { // リピートできる絵。画面では 2×2 に並べて、継ぎ目を見られるようにする。書き出しは1枚
+    const tile = renderTile(W, H, src, params()), n = reuse ? 2 : 1, g = c.getContext('2d')!;
+    c.width = W * n; c.height = H * n;
+    for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) c.getContext('2d')!.putImageData(tile, i * W, j * H);
+    void g;
+    return c;
+  }
+  c.width = W; c.height = H;
   c.getContext('2d')!.putImageData(renderOne(W, H, src, params(), reuse), 0, 0);
   return c;
 }
@@ -327,9 +381,12 @@ async function draw(): Promise<void> {
   try {
     const c = await produce($('compare').value ? 1080 : PREVIEW, true);
     if (mine !== token) return;
+    keepBefore(); // 描き替える前の絵を取っておく。「前の絵」ボタンで見比べられる
     const resized = view.width !== c.width || view.height !== c.height;
     view.width = c.width; view.height = c.height; ctx.drawImage(c, 0, 0);
+    drawn = true;
     if (resized) layoutView(); // 絵の大きさが変わったら、置き方を合わせ直す
+    drawBackdrop(); // 柄や色が変わっていれば、枠の背景も描き直す
     const n = chosen().length;
     $('s-info').textContent = showSources ? `素材 ${n}枚` : `シード ${seed}・ブロブ ${camo ? camo.comps.count : 0}・素材 ${n}枚・${Math.round(performance.now() - t0)}ms`;
     setStatus(all.length ? (n ? '' : '種類を1つ選んで。') : '素材がまだない。「自分の画像を足す」から入れて。');
@@ -368,6 +425,7 @@ function syncUi(): void {
   $('method').disabled = cmp; $('pattern').disabled = cv === 'patterns';
   $('pattern-note').textContent = patternById($('pattern').value).note;
   $('softlim').disabled = !$('soften').checked;
+  $('repeat-note').hidden = !$('repeat').checked;
   $('own-size').hidden = $('ratio').value !== 'custom';
   const pv = $('palette').value, pn = $('pal-name').value.trim(), K = patternById($('pattern').value).colors.length;
   $('pal-del').disabled = !ownPalette(pv);
@@ -420,7 +478,60 @@ viewport.addEventListener('pointerdown', (ev) => { if (ev.button !== 0) return; 
 viewport.addEventListener('pointermove', (ev) => { if (!drag) return; panX = drag.px + ev.clientX - drag.x; panY = drag.py + ev.clientY - drag.y; fitted = false; applyView(); });
 const endDrag = (): void => { drag = null; viewport.classList.remove('dragging'); };
 viewport.addEventListener('pointerup', endDrag); viewport.addEventListener('pointercancel', endDrag);
-new ResizeObserver(() => layoutView()).observe(viewport);
+// ---- 前の絵と見比べる ----
+// 描き直すたびに、直前の絵を1枚取っておく。「前の絵」を押しているあいだだけ、それを出す。離すと今の絵に戻る。
+// 設定を変えてから描き終わるまで時間がかかるので、何が変わったかを見比べるためのもの。
+let drawn = false, showingBefore = false;
+const beforeCv = document.createElement('canvas'), nowCv = document.createElement('canvas');
+let hasBefore = false;
+function copyInto(dst: HTMLCanvasElement, src: HTMLCanvasElement): void { dst.width = src.width; dst.height = src.height; dst.getContext('2d')!.drawImage(src, 0, 0); }
+function keepBefore(): void {
+  if (showingBefore) showBefore(false);
+  if (!drawn) return; // まだ1枚も描いていない
+  copyInto(beforeCv, view); hasBefore = true; $('before').disabled = false;
+}
+function showBefore(on: boolean): void {
+  if (on === showingBefore || !hasBefore) return;
+  if (on) { copyInto(nowCv, view); copyInto(view, beforeCv); } else copyInto(view, nowCv);
+  showingBefore = on; layoutView();
+  $('before').classList.toggle('on', on); viewport.classList.toggle('before', on);
+}
+{
+  const b = $('before');
+  b.addEventListener('pointerdown', (ev) => { b.setPointerCapture(ev.pointerId); showBefore(true); });
+  for (const t of ['pointerup', 'pointercancel', 'lostpointercapture']) b.addEventListener(t, () => showBefore(false));
+  b.addEventListener('keydown', (ev) => { if ((ev.key === ' ' || ev.key === 'Enter') && !ev.repeat) showBefore(true); });
+  b.addEventListener('keyup', (ev) => { if (ev.key === ' ' || ev.key === 'Enter') showBefore(false); });
+  b.addEventListener('blur', () => showBefore(false));
+  // キーボード：B を押しているあいだ、前の絵を出す。文字や数字を打つ欄、選択欄の中では効かせない
+  const typing = (t: EventTarget | null): boolean => t instanceof HTMLTextAreaElement || t instanceof HTMLSelectElement || (t instanceof HTMLInputElement && ['text', 'number', 'search'].includes(t.type));
+  window.addEventListener('keydown', (ev) => { if (ev.key.toLowerCase() !== 'b' || ev.metaKey || ev.ctrlKey || ev.altKey || ev.repeat || typing(ev.target)) return; ev.preventDefault(); showBefore(true); });
+  window.addEventListener('keyup', (ev) => { if (ev.key.toLowerCase() === 'b') showBefore(false); });
+  window.addEventListener('blur', () => showBefore(false)); // 押したまま別の窓へ移っても、前の絵のまま残らないように
+}
+
+// ---- 枠の背景：いま選んでいる迷彩を、素材なしの色だけで敷く ----
+// 絵に顔を入れると、どんな柄だったか分からなくなる。枠の余白に柄そのものを出しておく。
+// 半分の解像度で作って引き伸ばす。ブロブは切らない（色の形は同じなので、切る計算を省ける）。
+const backdrop = $<HTMLCanvasElement>('backdrop');
+let backdropKey = '';
+function drawBackdrop(): void {
+  const vw = window.innerWidth, vh = window.innerHeight; if (!vw || !vh) return; // 画面全体に敷く
+  const W = Math.max(8, Math.round(vw / 2)), H = Math.max(8, Math.round(vh / 2)), p = params(), cols = colors(p.pattern || 'blob');
+  // 全体表示のときの絵と、ブロブの大きさが画面上でそろうようにする
+  const shown = Math.max(view.width, view.height) * fitZoom(), size = p.size * shown / Math.max(vw, vh);
+  const key = [W, H, p.seed, size.toFixed(4), p.wobble, p.pattern, cols.join(';')].join('|');
+  if (key === backdropKey) return;
+  backdropKey = key;
+  try {
+    const bp: Params = { ...p, size, layerAt: p.pattern === 'blob' ? undefined : patternById(p.pattern || 'blob').make(p.seed, size), neck: 0, notch: 0, split: 'none', noSplit: true };
+    const img = new ImageData(W, H);
+    Kao.renderCamo(img.data, Kao.buildCamo(W, H, bp), [], cols, bp); // 素材なしで描くと、色だけになる
+    backdrop.width = W; backdrop.height = H; backdrop.getContext('2d')!.putImageData(img, 0, 0);
+  } catch (e) { console.warn('背景の迷彩を描けなかった', e); }
+}
+new ResizeObserver(() => { layoutView(); drawBackdrop(); }).observe(viewport);
+window.addEventListener('resize', () => drawBackdrop());
 
 // ---- URL との行き来 ----
 const FIELDS = [...SLIDERS, 'size', 'method', 'compare', 'assign', 'ratio', 'ow', 'oh', 'palette', 'pattern', 'split'];
@@ -436,6 +547,7 @@ function writeUrl(): void {
   if (!$('trim').checked) q.set('trim', '0');
   if (!$('soften').checked) q.set('soften', '0');
   if ($('edges').checked) q.set('edges', '1');
+  if ($('repeat').checked) q.set('repeat', '1');
   if (showSources) q.set('sources', '1');
   q.set('seed', String(seed));
   if (shuf) q.set('shuf', String(shuf));
@@ -462,6 +574,7 @@ function applyQuery(text: string): void {
   if (!$('palette').value) $('palette').value = 'native'; // 知らない配色の名前は、柄の本来の色に読み替える
   for (const id of ['fitblob', 'smooth', 'soft', 'trim', 'soften']) $(id).checked = q.get(id) !== '0';
   $('edges').checked = q.get('edges') === '1';
+  $('repeat').checked = q.get('repeat') === '1';
   seed = +(q.get('seed') || 0) || SEED0;
   shuf = +(q.get('shuf') || 0) || 0;
   picked.clear();
@@ -469,7 +582,7 @@ function applyQuery(text: string): void {
   if (q.get('compare') === '6') $('compare').value = '10'; // 「6方式を並べる」はなくした。古い URL は「はめ方を比べる」に読み替える
   const want = q.get('groups');
   for (const gname of want !== null ? want.split(',') : []) if (groups.includes(gname)) picked.add(gname);
-  $('showsrc').setAttribute('aria-pressed', String(showSources));
+  $('showsrc').checked = showSources;
 }
 
 // ---- 元に戻す・やり直す ----
@@ -506,7 +619,7 @@ window.addEventListener('keydown', (ev) => {
 // スライダーは、動かしているあいだは数字だけ変え、離したときに描き直す。動かすたびに描くと、重い描画が何度も走る。
 // 選択欄とチェックは、変えたらすぐ描き直す。名前の入力、ファイル選び、画素数の入力では描き直さない
 // 色選びと配色の名前（#pal-box の中）は、表示だけ合わせる。描き直しは自分のリスナーでやる
-const QUIET = ['ownname', 'own', 'ownkind', 'ow', 'oh', 'size'];
+const QUIET = ['ownname', 'own', 'ownkind', 'ow', 'oh', 'size', 'showsrc', 'lang'];
 const isSlider = (t: EventTarget | null): boolean => t instanceof HTMLInputElement && t.type === 'range';
 $('sheet').addEventListener('input', (ev) => { if (QUIET.includes((ev.target as HTMLElement).id)) return; syncUi(); if ((ev.target as HTMLElement).closest('#pal-box')) return; if (!isSlider(ev.target)) void draw(); });
 $('sheet').addEventListener('change', (ev) => { if (isSlider(ev.target)) void draw(); });
@@ -578,15 +691,15 @@ $('ownadd').addEventListener('click', async () => {
 let forgetArmed = 0;
 $('ownforget').addEventListener('click', async () => { // 押し間違いで消えないよう、2回押して消す
   const btn = $('ownforget');
-  if (Date.now() - forgetArmed > 4000) { forgetArmed = Date.now(); btn.textContent = '本当に消す（もう一度押す）'; setTimeout(() => { if (Date.now() - forgetArmed >= 4000) btn.textContent = '足したセットを全部消す'; }, 4100); return; }
-  forgetArmed = 0; btn.textContent = '足したセットを全部消す';
+  if (Date.now() - forgetArmed > 4000) { forgetArmed = Date.now(); btn.textContent = '本当に消す（もう一度押す）'; btn.classList.add('danger'); setTimeout(() => { if (Date.now() - forgetArmed >= 4000) btn.textContent = '足したセットを全部消す'; btn.classList.remove('danger'); }, 4100); return; }
+  forgetArmed = 0; btn.textContent = '足したセットを全部消す'; btn.classList.remove('danger');
   await forgetOwnImages();
   const gone = new Set(all.filter((s) => s.set === 'own').map((s) => s.group));
   all = all.filter((s) => s.set !== 'own'); groups = groups.filter((gname) => !gone.has(gname) || all.some((s) => s.group === gname));
   for (const gname of gone) if (!groups.includes(gname)) { picked.delete(gname); materials.forEach((_m, id) => { if (id.startsWith('own-')) materials.delete(id); }); }
   drawChips(); syncUi(); void draw();
 });
-$('showsrc').addEventListener('click', () => { showSources = !showSources; $('showsrc').setAttribute('aria-pressed', String(showSources)); void draw(); });
+$('showsrc').addEventListener('change', () => { showSources = $('showsrc').checked; void draw(); });
 $('save').addEventListener('click', async () => {
   if (exporting) return;
   const btn = $('save'), [ew, eh] = dims(exportLong());
@@ -615,6 +728,9 @@ for (const kind of ['その他', '実物', '軍用', '狩猟'] as const) {
 all = [...(await loadManifests()), ...(await restoreOwnImages())]; // 前に足した画像も読み戻す
 groups = [...new Set(all.map((s) => s.group))];
 loadPalettes(); drawPaletteOptions(); // 配色の一覧を先に作る。設定を当てる前に選択肢が要る
+// 言語。最初はブラウザの設定に合わせる。前に選んでいればそれ。比較表示の絵には文字が入るので、切り替えたら描き直す
+$('lang').value = initialLang(); setLang($('lang').value as Lang);
+$('lang').addEventListener('change', () => { setLang($('lang').value as Lang); void draw(); });
 rememberDefaults();
 // URL に指定があればそれを使う。なければ、前に閉じたときの状態から始める
 const startText = location.search.length > 1 ? location.search.slice(1) : loadText('last') || '';

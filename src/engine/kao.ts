@@ -326,9 +326,9 @@ export const Kao = (function () {
     for (c = 0; c < C; c++) {
       var L = cm.layer[c];
       if (!np || cm.area[c] < flatArea || (p.flatLayers && p.flatLayers.indexOf(L) >= 0)) continue;
-      pick[c] = p.assign === 'layer' ? L % np : Math.floor(hash2(c, 11, seed) * np) % np;
+      pick[c] = p.assign === 'layer' ? L % np : Math.floor(hash2(camo.keys ? camo.keys[c] : c, 11, seed) * np) % np;
     }
-    if (p.assign !== 'apart' || np < 2) return pick;
+    if (p.assign !== 'apart' || np < 2 || camo.keys) return pick; // 鍵つき（リピート用）のときは、ずらした写しどうしで同じ素材にしたいので、隣よけはしない
     var nb: Record<number, 1>[] = []; for (c = 0; c < C; c++) nb.push({});
     var gap = Math.max(2, Math.round(Math.max(W, H) * p.size * 0.22)), steps = [1, gap];
     for (var s = 0; s < 2; s++) {
@@ -361,16 +361,19 @@ export const Kao = (function () {
     var W = camo.W, H = camo.H, ids = camo.ids, cm = camo.comps, seed = p.seed | 0;
     var fit = p.fit, dist = p.dist, tint = p.tint, zoom = p.zoom, np = photos.length, sq = p.squeeze || 0, e1 = sq < 0.7 ? sq / 0.7 : 1, g1 = sq < 0.7 ? 0 : (sq - 0.7) / 0.3;
     var flatArea = (p.flatBelow || 0) * W * H, apart = p.assign === 'apart' ? assignSources(camo, np, p) : null;
+    var clip = p.clip, keys = camo.keys;
     for (var c = 0; c < cm.count; c++) {
       var L = cm.layer[c], col = colors[L % colors.length], bx = cm.x0[c], by = cm.y0[c];
       var bw = cm.x1[c] - bx + 1, bh = cm.y1[c] - by + 1, x, y, i, lx, ly;
+      if (clip && (cm.x1[c] < clip[0] || cm.y1[c] < clip[1] || bx > clip[2] || by > clip[3])) continue; // 描く範囲にかからないブロブは飛ばす
       if (!np || cm.area[c] < flatArea || (p.flatLayers && p.flatLayers.indexOf(L) >= 0)) { // 素材なし、または小さすぎるブロブは色だけ塗る
         for (y = by; y < by + bh; y++) for (x = bx, i = y * W + bx; x < bx + bw; x++, i++) if (ids[i] === c) {
           out[i * 4] = col[0]; out[i * 4 + 1] = col[1]; out[i * 4 + 2] = col[2]; out[i * 4 + 3] = 255;
         }
         continue;
       }
-      var r1 = hash2(c, 11, seed), r2 = hash2(c, 23, seed), r3 = hash2(c, 37, seed), r4 = hash2(c, 41, seed);
+      var kc = keys ? keys[c] : c; // 素材・向き・回転を決める鍵。ふつうはブロブの番号
+      var r1 = hash2(kc, 11, seed), r2 = hash2(kc, 23, seed), r3 = hash2(kc, 37, seed), r4 = hash2(kc, 41, seed);
       var ph0 = photos[apart ? apart[c] : p.assign === 'layer' ? L % np : Math.floor(r1 * np) % np];
       var ph: Source = 'pick' in ph0 ? ph0.pick(bw / bh) : ph0; // content-aware sources hand back a version carved for this blob's proportions
       if (ph.shape && p.method && p.method !== 'radial') {
@@ -1061,5 +1064,5 @@ export const Kao = (function () {
       paint(out, i * 4, d, s2, col, o.tint);
     }
   }
-  return { buildCamo: buildCamo, renderCamo: renderCamo, carve: carve, assignSources: assignSources, hash2: hash2, vnoise: vnoise };
+  return { buildCamo: buildCamo, renderCamo: renderCamo, carve: carve, assignSources: assignSources, hash2: hash2, vnoise: vnoise, fbm: fbm, THR: THR };
 })();

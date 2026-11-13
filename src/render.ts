@@ -24,6 +24,8 @@ export interface Job {
   edges: boolean;
   /** 迷彩を使い回す（画面用）。書き出しや比較表示では使い回さない */
   reuse: boolean;
+  /** リピートの絵（kind が tile）で、ブロブ分けを決める升の大きさ [幅, 高さ]。画面用と書き出し用で同じ値を渡すと、同じ絵になる */
+  tileRef?: [number, number];
 }
 export interface Result { data: Uint8ClampedArray<ArrayBuffer>; W: number; H: number; blobs: number }
 
@@ -46,6 +48,8 @@ function withLayer(p: Params): Params {
 }
 
 let camo: Camo | null = null, camoKey = '';
+/** リピートの絵の、ブロブ分けを決めた迷彩。設定が同じあいだ使い回す（画面用と書き出し用で同じものを使う） */
+let tileRef: Camo | null = null, tileRefKey = '';
 function getCamo(W: number, H: number, p: Params, reuse: boolean): Camo {
   const key = [W, H, p.seed, p.size, p.wobble, p.pattern, p.neck, p.notch, p.split, p.cutRef].join('|');
   if (reuse && camo && camoKey === key) return camo;
@@ -82,9 +86,10 @@ function softenEdges(d: Uint8ClampedArray, W: number, H: number, cam: Camo): voi
  * 上下左右がつながる迷彩の層。幅 tw・高さ th（画素）ごとに同じ柄がくり返す。
  * もとの柄はくり返さないので、そのまま並べると端で柄が切れる。そこで、もとの柄から2か所を切り出し、
  * 1枚目は升目の中ほどで、2枚目は升目の端のあたりで使う。2枚の境目は、同じ周期でうねる線にする。
- * 返す関数は、tw×th の升を2×2に敷いた、長辺 M2 の大きなキャンバスの座標で呼ばれる。
+ * 返す関数は、升の中の画素 (px, py) の層を返す。px, py は升の外へはみ出してよい（くり返す）。
+ * 升の画素 (x, y) は、ふつうの絵の画素 (x, y) と同じ柄になる。だから、リピートを入れても絵の中ほどは同じ柄のまま。変わるのは端のあたりだけ。
  */
-function tileableLayer(p: Params, tw: number, th: number, M2: number): LayerFn {
+function tileableField(p: Params, tw: number, th: number): (px: number, py: number) => number {
   const base = p.layerAt, seed = p.seed | 0, size = p.size, f = 1 / size, wob = p.wobble * size * 0.9, Mt = Math.max(tw, th), TAU = Math.PI * 2;
   const at = (qx: number, qy: number): number => { // 升の中の画素 (qx, qy) の層。うねりも、エンジンと同じ式でここで掛ける
     const nx = qx / Mt, ny = qy / Mt;
@@ -94,8 +99,8 @@ function tileableLayer(p: Params, tw: number, th: number, M2: number): LayerFn {
     return L;
   };
   const mod = (t: number, n: number): number => ((t % n) + n) % n;
-  return (nx, ny) => {
-    const px = nx * M2, py = ny * M2, u = mod(px, tw), v = mod(py, th), ub = mod(px + tw / 2, tw), vb = mod(py + th / 2, th);
+  return (px, py) => {
+    const u = mod(px, tw), v = mod(py, th), ub = mod(px + tw / 2, tw), vb = mod(py + th / 2, th);
     const wa = Math.min(Math.min(u, tw - u) / tw, Math.min(v, th - v) / th), wb = Math.min(Math.min(ub, tw - ub) / tw, Math.min(vb, th - vb) / th);
     const a = TAU * px / tw, b = TAU * py / th, wave = 0.05 * (Math.sin(3 * a + 1.3) * Math.cos(2 * b) + Math.sin(5 * b + 0.4) * Math.cos(4 * a + 2.1)) + 0.03 * Math.sin(7 * a + 3 * b);
     return wa + wave > wb ? at(u, v) : at(ub + tw * 1.37, vb + th * 2.11); // 2枚目は、もとの柄の離れた所から取る
@@ -133,12 +138,29 @@ function renderOne(job: Job, p: Params, src: Picker[]): Result {
  */
 function renderTile(job: Job, p: Params, src: Picker[]): Result {
   const { W, H } = job, W2 = W * 2, H2 = H * 2, x0 = W >> 1, y0 = H >> 1;
-  // 大きすぎるブロブを割る処理は、場所によって割り方が変わるので使わない。えぐれ切りは、正方形のときだけ写しどうしで同じ所が切れる。
-  // 小さい絵に合わせて切る仕組み（cutRef）も、ここでは使わない。ずらした写しどうしで同じ形にしたいので、この大きさのまま切る
-  const p2: Params = { ...p, layerAt: tileableLayer(p, W, H, Math.max(W2, H2)), noSplit: true, split: 'none', notch: W === H ? p.notch : 0, flatBelow: (p.flatBelow || 0) / 4, cutRef: undefined, clip: [x0 - 1, y0 - 1, x0 + W, y0 + H] };
-  const cam = Kao.buildCamo(W2, H2, p2), cm = cam.comps, keys = new Int32Array(cm.count);
-  for (let c = 0; c < cm.count; c++) keys[c] = (Math.imul(cm.x0[c] % W, 73856093) ^ Math.imul(cm.y0[c] % H, 19349663) ^ Math.imul(cm.area[c], 83492791)) & 0x7fffffff;
-  cam.keys = keys;
+  // ブロブ分けは、決まった大きさの升（tileRef。画面も書き出しも同じ）で決める。絵がそれと違う大きさのときは、そのブロブ分けを広げる。
+  // こうしないと、絵の大きさごとにブロブの切れ方が変わり、画面で見た絵と書き出した絵が別物になる
+  const [rw, rh] = job.tileRef || [W, H], R2w = rw * 2, R2h = rh * 2, rx0 = rw >> 1, ry0 = rh >> 1;
+  const field = tileableField(p, rw, rh), M2 = Math.max(R2w, R2h);
+  // 大きすぎるブロブを割る処理は、場所によって割り方が変わるので使わない。えぐれ切りは、正方形のときだけ写しどうしで同じ所が切れる
+  const p2: Params = { ...p, layerAt: ((nx, ny) => field(nx * M2 - rx0, ny * M2 - ry0)) as LayerFn, noSplit: true, split: 'none', notch: rw === rh ? p.notch : 0, flatBelow: (p.flatBelow || 0) / 4, cutRef: undefined, clip: [x0 - 1, y0 - 1, x0 + W, y0 + H] };
+  const key = ['tile', rw, rh, p.seed, p.size, p.wobble, p.pattern, p.neck, p2.notch].join('|');
+  let ref = tileRef && tileRefKey === key ? tileRef : null;
+  if (!ref) {
+    ref = Kao.buildCamo(R2w, R2h, p2);
+    // 左端をまたぐブロブと右端をまたぐブロブは、ちょうど升1つぶんずれた同じ形。同じ鍵を持たせて、同じ素材・同じ向きで描く
+    const rc = ref.comps, keys = new Int32Array(rc.count);
+    for (let c = 0; c < rc.count; c++) keys[c] = (Math.imul(rc.x0[c] % rw, 73856093) ^ Math.imul(rc.y0[c] % rh, 19349663) ^ Math.imul(rc.area[c], 83492791)) & 0x7fffffff;
+    ref.keys = keys;
+    tileRef = ref; tileRefKey = key;
+  }
+  let cam = ref;
+  if (W !== rw || H !== rh) { // 絵の画素 (x, y) は、升の画素 (x × rw/W − 升の窓の左上) にあたる
+    const sx = R2w / W2, sy = R2h / H2;
+    cam = Kao.fromRef(ref, W2, H2, (x, y) => field((x + 0.5) * sx - 0.5 - rx0, (y + 0.5) * sy - 0.5 - ry0));
+    cam.keys = ref.keys;
+  }
+  const cm = cam.comps;
   const big = new Uint8ClampedArray(W2 * H2 * 4);
   Kao.renderCamo(big, cam, src, job.colors as RGB[], p2);
   if (job.soft) softenEdges(big, W2, H2, cam);

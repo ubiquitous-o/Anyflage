@@ -324,15 +324,25 @@ export const Kao = (function () {
   function buildFromRef(W: number, H: number, p: Pick<Params, 'seed' | 'size' | 'wobble' | 'layerAt' | 'neck' | 'notch' | 'noSplit' | 'split' | 'cutRef'>): Camo {
     var M = Math.max(W, H), f = (p.cutRef as number) / M, cw = Math.max(1, Math.round(W * f)), ch = Math.max(1, Math.round(H * f));
     var q: typeof p = { seed: p.seed, size: p.size, wobble: p.wobble, layerAt: p.layerAt, neck: p.neck, notch: p.notch, noSplit: p.noSplit, split: p.split };
-    var ref = buildCamo(cw, ch, q), rid = ref.ids, rl = ref.comps.layer, C = ref.comps.count;
     var layerAt = p.layerAt, seed = p.seed | 0, size = p.size, fq = 1 / size, wob = p.wobble * size * 0.9;
+    return fromRef(buildCamo(cw, ch, q), W, H, function (x: number, y: number) {
+      var nx = x / M, ny = y / M;
+      var wx = nx + wob * (vnoise(nx * fq * 2.1, ny * fq * 2.1, seed + 50) - 0.5), wy = ny + wob * (vnoise(nx * fq * 2.1 + 40, ny * fq * 2.1 + 40, seed + 51) - 0.5);
+      if (layerAt) return layerAt(nx, ny, wx, wy);
+      var L = 0; for (var k = 1; k < 4; k++) if (fbm(wx * fq / 1.45 + k * 31.7, wy * fq + k * 17.3, seed + k) > THR[k]) L = k;
+      return L;
+    });
+  }
+  /**
+   * 小さい絵（ref）のブロブ分けを、W×H の絵へ広げる。layerOf は、W×H の絵の画素 (x, y) の色の層を返す。
+   * ブロブの番号は ref と同じまま。だから、番号や ref の形から決めたもの（どの画像を入れるか、など）が、どの大きさでも同じになる。
+   */
+  function fromRef(ref: Camo, W: number, H: number, layerOf: (x: number, y: number) => number): Camo {
+    var cw = ref.W, ch = ref.H, rid = ref.ids, rl = ref.comps.layer, C = ref.comps.count;
     var n = W * H, layer = new Int32Array(n), ids = new Int32Array(n), fx = cw / W, fy = ch / H;
     var cand = [0, 0, 0, 0], wgt = [0, 0, 0, 0];
     for (var y = 0, i = 0; y < H; y++) for (var x = 0; x < W; x++, i++) {
-      var nx = x / M, ny = y / M;
-      var wx = nx + wob * (vnoise(nx * fq * 2.1, ny * fq * 2.1, seed + 50) - 0.5), wy = ny + wob * (vnoise(nx * fq * 2.1 + 40, ny * fq * 2.1 + 40, seed + 51) - 0.5);
-      var L = 0;
-      if (layerAt) L = layerAt(nx, ny, wx, wy); else for (var k = 1; k < 4; k++) if (fbm(wx * fq / 1.45 + k * 31.7, wy * fq + k * 17.3, seed + k) > THR[k]) L = k;
+      var L = layerOf(x, y);
       // 小さい絵の、まわり4画素。同じ色のブロブだけを候補にして、近さの重みがいちばん大きいものを選ぶ。境目がなめらかな斜めになる
       var rx = Math.min(cw - 1, Math.max(0, (x + 0.5) * fx - 0.5)), ry = Math.min(ch - 1, Math.max(0, (y + 0.5) * fy - 0.5));
       var x0 = Math.floor(rx), y0 = Math.floor(ry), x1 = Math.min(cw - 1, x0 + 1), y1 = Math.min(ch - 1, y0 + 1), tx = rx - x0, ty = ry - y0, nc = 0, best = -1, bw = 0;
@@ -1134,5 +1144,5 @@ export const Kao = (function () {
       paint(out, i * 4, d, s2, col, o.tint);
     }
   }
-  return { buildCamo: buildCamo, renderCamo: renderCamo, carve: carve, assignSources: assignSources, prepareSource: prepareSource, hash2: hash2, vnoise: vnoise, fbm: fbm, THR: THR };
+  return { buildCamo: buildCamo, renderCamo: renderCamo, carve: carve, assignSources: assignSources, prepareSource: prepareSource, hash2: hash2, vnoise: vnoise, fbm: fbm, THR: THR, fromRef: fromRef };
 })();

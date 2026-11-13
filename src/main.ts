@@ -224,7 +224,7 @@ async function sources(): Promise<string[]> {
 }
 /** 絵を1枚、Worker に描いてもらう。設定のうち関数（layerAt）は送れないので外す。柄は名前から向こうで作る */
 async function paint(kind: Job['kind'], W: number, H: number, mats: string[], p: Params, reuse: boolean): Promise<ImageData> {
-  const job: Job = { kind, W, H, p: { ...p, layerAt: undefined }, colors: colors(p.pattern || 'blob') as number[][], mats, mat: matOptions(), soft: $('soft').checked, edges: $('edges').checked, reuse };
+  const job: Job = { kind, W, H, p: { ...p, layerAt: undefined }, colors: colors(p.pattern || 'blob') as number[][], mats, mat: matOptions(), soft: $('soft').checked, edges: $('edges').checked, reuse, tileRef: kind === 'tile' ? dims(PREVIEW) : undefined };
   const r = await engine.render(job);
   lastBlobs = r.blobs;
   return new ImageData(r.data, r.W, r.H);
@@ -307,8 +307,8 @@ async function produce(longEdge: number, reuse: boolean, stale: () => boolean = 
     return c;
   }
   const [W, H] = dims(longEdge);
-  // リピートできる絵。画面では 2×2 に並べて、継ぎ目を見られるようにする。書き出しは1枚
-  if ($('repeat').checked) return canvasOf(await paint('tile', W, H, src, p, reuse), reuse ? 2 : 1);
+  // リピートできる絵。画面では、頼まれたときだけ 2×2 に並べて、継ぎ目を見られるようにする。書き出しはいつも1枚
+  if ($('repeat').checked) return canvasOf(await paint('tile', W, H, src, p, reuse), reuse && $('repeatgrid').checked ? 2 : 1);
   return canvasOf(await paint('one', W, H, src, p, reuse));
 }
 
@@ -326,7 +326,7 @@ async function drawOnce(): Promise<void> {
   setBusy('描いている…');
   try {
     const cmp = $('compare').value;
-    const c = await produce(cmp ? 1080 : $('repeat').checked ? PREVIEW : previewLong(), true, () => wanted);
+    const c = await produce(cmp ? 1080 : $('repeat').checked && $('repeatgrid').checked ? PREVIEW : previewLong(), true, () => wanted);
     if (wanted && cmp) return; // 並べて比べる絵を、途中でやめた。次の描き直しに任せる
     keepBefore(); // 描き替える前の絵を取っておく。「前の絵」ボタンで見比べられる
     const resized = view.width !== c.width || view.height !== c.height;
@@ -372,7 +372,7 @@ function syncUi(): void {
   $('method').disabled = cmp; $('pattern').disabled = cv === 'patterns';
   $('pattern-note').textContent = patternById($('pattern').value).note;
   $('softlim').disabled = !$('soften').checked;
-  $('repeat-note').hidden = !$('repeat').checked;
+  $('repeat-note').hidden = !$('repeat').checked; $('repeatgrid-row').hidden = !$('repeat').checked;
   $('own-size').hidden = $('ratio').value !== 'custom';
   const pv = $('palette').value, pn = $('pal-name').value.trim(), K = patternById($('pattern').value).colors.length;
   $('pal-del').disabled = !ownPalette(pv);
@@ -495,6 +495,7 @@ function writeUrl(): void {
   if (!$('soften').checked) q.set('soften', '0');
   if ($('edges').checked) q.set('edges', '1');
   if ($('repeat').checked) q.set('repeat', '1');
+  if ($('repeat').checked && $('repeatgrid').checked) q.set('grid', '1');
   if (showSources) q.set('sources', '1');
   q.set('seed', String(seed));
   if (shuf) q.set('shuf', String(shuf));
@@ -521,7 +522,7 @@ function applyQuery(text: string): void {
   if (!$('palette').value) $('palette').value = 'native'; // 知らない配色の名前は、柄の本来の色に読み替える
   for (const id of ['fitblob', 'smooth', 'soft', 'trim', 'soften']) $(id).checked = q.get(id) !== '0';
   $('edges').checked = q.get('edges') === '1';
-  $('repeat').checked = q.get('repeat') === '1';
+  $('repeat').checked = q.get('repeat') === '1'; $('repeatgrid').checked = q.get('grid') === '1';
   seed = +(q.get('seed') || 0) || SEED0;
   shuf = +(q.get('shuf') || 0) || 0;
   picked.clear();

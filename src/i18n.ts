@@ -55,7 +55,8 @@ const EN: Record<string, string> = {
   'ストーリーズ／リール 9:16 1080×1920': 'Stories / Reels 9:16 1080×1920', 'ポスト 横 16:9 1600×900': 'Post landscape 16:9 1600×900', 'ポスト 正方形 1080×1080': 'Post square 1080×1080', 'ポスト 縦 4:5 1080×1350': 'Post portrait 4:5 1080×1350', 'ヘッダー 3:1 1500×500': 'Header 3:1 1500×500',
   '好きな大きさ（画素で指定）': 'Any size (in pixels)', '幅': 'Width', '高さ': 'Height',
   'リピートできる絵にする（上下左右がつながる）': 'Make it tileable (edges join on all four sides)',
-  'プレビューは 2×2 に並べて出している。継ぎ目が見えないか確かめられる。書き出すのは1枚ぶん。大きすぎるブロブを割る処理と、隣どうしで同じ素材を避ける割り当ては、リピートでは使えない。': 'The preview shows the tile repeated 2×2 so you can check the seams. Export saves a single tile. Cutting oversized blobs and avoiding the same image in neighbours are not available when tileable.',
+  '2×2 に並べて継ぎ目を見る': 'Repeat 2×2 to check the seams',
+  '絵の中ほどの柄は、リピートなしのときと同じ。端のあたりだけ、つながるように柄が変わる。ブロブの切れ方と、どの画像がどこに入るかは変わる（大きすぎるブロブを割る処理と、隣どうしで同じ素材を避ける割り当ては、リピートでは使えない）。書き出すのはいつも1枚ぶん。': 'The pattern in the middle of the image is the same as without tiling. Only the area near the edges changes so that they join. How blobs are cut and which image goes where do change (cutting oversized blobs and avoiding the same image in neighbours are not available when tileable). Export always saves a single tile.',
   'PNGを保存': 'Save PNG', '書き出している…': 'Exporting…', 'ファイルにしている…': 'Encoding the file…', '画像を作れなかった。': 'Could not create the image.',
   // 状態
   '描いている…': 'Drawing…', '描いている…（枚数が多いと時間がかかる）': 'Drawing… (many images take longer)', '種類を1つ選んで。': 'Choose at least one set.', '素材がまだない。「自分の画像を足す」から入れて。': 'No images yet. Add some under "Add your own images".',

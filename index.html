@@ -222,7 +222,8 @@
       </div>
       <p id="out-size" class="note"></p>
       <label class="switch"><input type="checkbox" id="repeat" role="switch"><span class="knob" aria-hidden="true"></span>リピートできる絵にする（上下左右がつながる）</label>
-      <p id="repeat-note" class="note" hidden>プレビューは 2×2 に並べて出している。継ぎ目が見えないか確かめられる。書き出すのは1枚ぶん。大きすぎるブロブを割る処理と、隣どうしで同じ素材を避ける割り当ては、リピートでは使えない。</p>
+      <label class="switch" id="repeatgrid-row" hidden><input type="checkbox" id="repeatgrid" role="switch"><span class="knob" aria-hidden="true"></span>2×2 に並べて継ぎ目を見る</label>
+      <p id="repeat-note" class="note" hidden>絵の中ほどの柄は、リピートなしのときと同じ。端のあたりだけ、つながるように柄が変わる。ブロブの切れ方と、どの画像がどこに入るかは変わる（大きすぎるブロブを割る処理と、隣どうしで同じ素材を避ける割り当ては、リピートでは使えない）。書き出すのはいつも1枚ぶん。</p>
       <button type="button" class="primary" id="save">PNGを保存</button>
     </fieldset>
   </form>

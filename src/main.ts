@@ -232,22 +232,23 @@ async function paint(kind: Job['kind'], W: number, H: number, mats: string[], p:
 interface Tile { label: string; p: Params }
 /** 同じ素材で、方式だけ、または柄だけ変えて並べる */
 async function renderSheet(tile: number, cols: number, tiles: Tile[], src: string[], stale: () => boolean): Promise<HTMLCanvasElement> {
-  const rows = Math.ceil(tiles.length / cols);
-  const c = document.createElement('canvas'); c.width = tile * cols; c.height = tile * rows;
-  const g = c.getContext('2d')!, fs = Math.max(11, Math.round(tile / 24));
+  // 1枚ずつを、出力で選んだ比率で描く。tile は1枚の長辺。正方形で並べると、出したい形でどう見えるかが分からない
+  const rows = Math.ceil(tiles.length / cols), [tw, th] = dims(tile);
+  const c = document.createElement('canvas'); c.width = tw * cols; c.height = th * rows;
+  const g = c.getContext('2d')!, fs = Math.max(11, Math.round(Math.min(tw, th) / 20));
   for (let k = 0; k < tiles.length; k++) {
     if (stale()) break; // 新しい描き直しが待っている。残りは描かない
-    const t = tiles[k];
+    const t = tiles[k], label = tr(t.label);
     setBusy(`描いている… ${k + 1}/${tiles.length}`);
-    const x = (k % cols) * tile, y = Math.floor(k / cols) * tile;
-    g.putImageData(await paint('one', tile, tile, src, t.p, false), x, y);
+    const x = (k % cols) * tw, y = Math.floor(k / cols) * th;
+    g.putImageData(await paint('one', tw, th, src, t.p, false), x, y);
     g.font = `700 ${fs}px "Hiragino Sans", sans-serif`; g.textBaseline = 'top';
-    g.fillStyle = 'rgba(20,23,15,.82)'; g.fillRect(x, y, g.measureText(t.label).width + fs, fs * 1.7);
-    g.fillStyle = '#F3F4EA'; g.fillText(tr(t.label), x + fs / 2, y + fs * 0.35);
+    g.fillStyle = 'rgba(20,23,15,.82)'; g.fillRect(x, y, Math.min(tw, g.measureText(label).width + fs), fs * 1.7);
+    g.fillStyle = '#F3F4EA'; g.fillText(label, x + fs / 2, y + fs * 0.35, tw - fs);
   }
   g.fillStyle = 'rgba(20,23,15,.82)';
-  for (let k = 1; k < cols; k++) g.fillRect(k * tile - 1, 0, 2, c.height);
-  for (let k = 1; k < rows; k++) g.fillRect(0, k * tile - 1, c.width, 2);
+  for (let k = 1; k < cols; k++) g.fillRect(k * tw - 1, 0, 2, c.height);
+  for (let k = 1; k < rows; k++) g.fillRect(0, k * th - 1, c.width, 2);
   return c;
 }
 /** マスクが合っているか見るための一覧。市松の上に切り抜きを置く */

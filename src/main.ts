@@ -400,7 +400,7 @@ function syncUi(): void {
   $('motion-box').hidden = !$('motion').checked;
   $('o-mamt2').textContent = `${$('mamt2').value}%`; $('o-mlava').textContent = `${$('mlava').value}%`;
   $('mamt2').disabled = !$('mkind2').value; $('mlava').disabled = $('mgrow').disabled = !$('lava').checked; $('o-mgrow').textContent = `毎秒 ブロブ${$('mgrow').value}個ぶん`; $('lava-note').hidden = !$('lava').checked;
-  const [vw, vh] = dims(videoLong()); $('video-note').textContent = `動画の大きさ：${vw & ~1}×${vh & ~1} px・${VIDEO_FPS}fps・${$('msec').value}秒で1周。くり返し再生すると、継ぎ目なくつながる。`;
+  const [vw, vh] = dims(videoLong()); $('video-note').textContent = `書き出す動画：${vw & ~1}×${vh & ~1} px、${VIDEO_FPS}fps、${$('msec').value}秒。くり返し再生すると、なめらかにつながる。`;
   syncMotion();
 }
 

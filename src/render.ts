@@ -270,6 +270,10 @@ let lavaPrev: {
   W: number; H: number;
   /** 画素ごとの、そこに絵を出していたブロブの鍵。色だけ塗った所は -1 */
   owner: Int32Array;
+  /** 画素ごとの、広がりの出発点（画素の番号）。広がりきったブロブでは、自分自身 */
+  org: Int32Array;
+  /** 鍵ごとの、広がり始めてからのコマ数。広がりきったら 0 に戻す */
+  ageOf: Map<number, number>;
   /** 鍵ごとの層。色の違うブロブへは引き継がない */
   layerOf: Map<number, number>;
   /** 鍵ごとの、素材の版を選んだときの縦横比 */
@@ -324,25 +328,33 @@ function renderLava(job: Job, p0: Params, src: Picker[]): Result {
     used.add(k); keys[c] = k;
   }
   let cam = base, camKeys = keys;
-  const owner = new Int32Array(n);
-  if (!prev) { for (let i = 0; i < n; i++) owner[i] = keys[bids[i]]; } // 最初のコマは、全部に絵を入れる
+  const owner = new Int32Array(n), org = new Int32Array(n), ageOf = new Map<number, number>();
+  if (!prev) { for (let i = 0; i < n; i++) { owner[i] = keys[bids[i]]; org[i] = i; } } // 最初のコマは、全部に絵を入れる
   else {
-    // 絵が届いている所：前のコマで同じ鍵の絵が出ていた所から、同じブロブの中を step 画素ぶん広げる
-    const step = Math.max(1, Math.round(p.size * M * lv.grow)), reach = new Int16Array(n).fill(-1), queue = new Int32Array(n), po = prev.owner;
-    const seeded = new Uint8Array(bm.count);
+    // 絵が届いている所：前のコマで同じ鍵の絵が出ていた所から、同じブロブの中を step 画素ぶん広げる。
+    // 広がりは丸くする。画素ごとに「どの出発点から来たか」を持ち回り、出発点からのまっすぐな距離が半径以内の所まで進む。
+    // 半径は「広がり始めてからのコマ数 × step」。出発点は、広がり始めたときの縁のまま、コマをまたいで持ち越す。
+    // こうすると、1コマの広がりが1〜3画素しかなくても丸く広がる（毎コマ縁から数え直すと、画素の升目の形が積み重なって、ひし形や四角になる）。
+    // 広がりきったブロブは、出発点を自分自身に戻す。次に広がるときは、そのときの縁から丸く広がる
+    const step = Math.max(0.25, p.size * M * lv.grow), reach = new Int16Array(n).fill(-1), from = new Int32Array(n), queue = new Int32Array(n), po = prev.owner, porg = prev.org;
+    const seeded = new Uint8Array(bm.count), rad2 = new Float32Array(bm.count), age = new Int32Array(bm.count);
+    for (let c = 0; c < bm.count; c++) { age[c] = prev.ageOf.get(keys[c]) || 0; const r = (age[c] + 1) * step; rad2[c] = r * r; }
     let head = 0, tail = 0;
-    for (let i = 0; i < n; i++) { const c = bids[i]; if (po[i] === keys[c]) { reach[i] = 0; queue[tail++] = i; seeded[c] = 1; } }
+    for (let i = 0; i < n; i++) { const c = bids[i]; if (po[i] === keys[c]) { reach[i] = 0; from[i] = porg[i]; queue[tail++] = i; seeded[c] = 1; } }
     for (let c = 0; c < bm.count; c++) if (!seeded[c] && bm.area[c]) { // 前の絵がどこにもない。いちばん深い点から広げる
       const i = Math.min(H - 1, Math.max(0, Math.round(bm.cy[c]))) * W + Math.min(W - 1, Math.max(0, Math.round(bm.cx[c])));
-      if (bids[i] === c) { reach[i] = 0; queue[tail++] = i; }
+      if (bids[i] === c) { reach[i] = 0; from[i] = i; queue[tail++] = i; }
+      age[c] = 0; rad2[c] = step * step;
     }
     while (head < tail) {
-      const i = queue[head++], d = reach[i]; if (d >= step) continue;
-      const c = bids[i], x = i % W;
-      if (x > 0 && reach[i - 1] < 0 && bids[i - 1] === c) { reach[i - 1] = d + 1; queue[tail++] = i - 1; }
-      if (x < W - 1 && reach[i + 1] < 0 && bids[i + 1] === c) { reach[i + 1] = d + 1; queue[tail++] = i + 1; }
-      if (i >= W && reach[i - W] < 0 && bids[i - W] === c) { reach[i - W] = d + 1; queue[tail++] = i - W; }
-      if (i < n - W && reach[i + W] < 0 && bids[i + W] === c) { reach[i + W] = d + 1; queue[tail++] = i + W; }
+      const i = queue[head++], c = bids[i], x = i % W, y = (i / W) | 0, s = from[i], sx = s % W, sy = (s / W) | 0;
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { // まわり8画素
+        if (!dx && !dy) continue;
+        const nx = x + dx, ny = y + dy; if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue;
+        const j = ny * W + nx; if (reach[j] >= 0 || bids[j] !== c) continue;
+        if ((nx - sx) * (nx - sx) + (ny - sy) * (ny - sy) > rad2[c]) continue; // 出発点から遠すぎる。ほかの出発点からなら届くかもしれないので、印は付けない
+        reach[j] = 1; from[j] = s; queue[tail++] = j;
+      }
     }
     // 届いた所と、まだの所を、別のブロブにする
     const key = new Int32Array(n), layer = new Int32Array(n); let pending = 0;
@@ -356,7 +368,10 @@ function renderLava(job: Job, p0: Params, src: Picker[]): Result {
       }
       cam.flat = flat;
     }
-    for (let i = 0; i < n; i++) owner[i] = reach[i] >= 0 ? keys[bids[i]] : -1;
+    const left = new Int32Array(bm.count); // ブロブごとの、まだ届いていない画素の数
+    for (let i = 0; i < n; i++) if (reach[i] < 0) left[bids[i]]++;
+    for (let i = 0; i < n; i++) { const c = bids[i]; if (reach[i] >= 0) { owner[i] = keys[c]; org[i] = left[c] ? from[i] : i; } else owner[i] = -1; }
+    for (let c = 0; c < bm.count; c++) if (bm.area[c] && left[c]) ageOf.set(keys[c], age[c] + 1);
   }
   const layerOf = new Map<number, number>(); for (let c = 0; c < bm.count; c++) layerOf.set(keys[c], bm.layer[c]);
   // 素材の版は、ブロブの縦横比で選ぶ。比が境目のあたりにあると、毎コマ版が入れ替わって絵が飛ぶ。大きく変わるまで、前の比のままにする
@@ -368,7 +383,7 @@ function renderLava(job: Job, p0: Params, src: Picker[]): Result {
     aspect[c] = a; if (!(cam.flat && cam.flat[c])) aspectOf.set(camKeys[c], a);
   }
   if (lv.pass === 'f') lavaKeys.F[lv.index] = keys; else if (lv.pass === 'b') lavaKeys.B[lv.index] = keys;
-  if (dry) { lavaPrev = { W, H, owner, layerOf, aspectOf, uv: null }; return { data: new Uint8ClampedArray(4), W: 1, H: 1, blobs: bm.count }; } // 絵は返さない。1画素だけ
+  if (dry) { lavaPrev = { W, H, owner, org, ageOf, layerOf, aspectOf, uv: null }; return { data: new Uint8ClampedArray(4), W: 1, H: 1, blobs: bm.count }; } // 絵は返さない。1画素だけ
   cam.keys = camKeys; cam.steady = true; cam.aspect = aspect;
   // 絵を読む位置を、前のコマからなめらかにつなぐ。前のコマも同じ鍵の絵だった画素だけ
   const ok = new Uint8Array(n), pu = prev && prev.uv ? prev.uv.u : new Float32Array(0), pv = prev && prev.uv ? prev.uv.v : new Float32Array(0);
@@ -379,7 +394,7 @@ function renderLava(job: Job, p0: Params, src: Picker[]): Result {
   Kao.renderCamo(data, cam, src, job.colors as RGB[], p);
   if (job.soft) softenEdges(data, W, H, cam);
   if (job.edges) whiteEdges(data, cam.ids, W, 0, 0, W - 1, H - 1);
-  lavaPrev = { W, H, owner, layerOf, aspectOf, uv: { u: ease.nu, v: ease.nv, set: ease.set } };
+  lavaPrev = { W, H, owner, org, ageOf, layerOf, aspectOf, uv: { u: ease.nu, v: ease.nv, set: ease.set } };
   return { data, W, H, blobs: bm.count };
 }
 

@@ -277,6 +277,23 @@ function tiles(seed: number, size: number): LayerFn {
   };
 }
 
+/**
+ * 柄ごとの、ブロブの大きさの倍率。同じ「ブロブの大きさ」で、どの柄も色のかたまりが同じくらいの大きさになるようにそろえる。
+ * そろえないと、柄を切り替えたとたんにブロブが何倍にも変わる（実物の柄は、標準の柄の 1/4〜1/20 だった）。
+ * 基準は「Anyflage 標準」。値は scripts/measure-sizes.ts で測って決めた。柄を足したら、測って足す。
+ * 「角丸の正方形タイル」は、ブロブの大きさがそのままタイル1枚の大きさなので、そろえない。
+ */
+export const SIZE_FIX: Record<string, number> = {
+  woodland: 1.62, dpm: 1.47, flecktarn: 2.64, jgsdf: 3.93, digital: 2.06, berezka: 0.82, tiger: 3.03, splitter31: 3.98, m90: 1.3, frog: 3.19, chocchip: 1.75, multi: 2, dazzle: 1.52, asat: 1.84, optifade: 1.49, blaze: 1.62,
+  'sw-m81': 4.48, 'sw-erdl-green': 12.71, 'sw-erdl-brown': 12.63, 'sw-lizard': 8.91, 'sw-emr': 16.7, 'sw-dpm': 2.38, 'sw-flecktarn': 6.16, 'sw-splitter31': 2.8, 'sw-klmk': 2.92, 'sw-frogskin': 6.29, 'sw-jgsdf2': 5.52,
+};
+/** 柄の生成器に、大きさの倍率を掛ける */
+function fixSize(p: Pattern): Pattern {
+  const k = SIZE_FIX[p.id];
+  if (k && k !== 1) { const make = p.make; p.make = (seed, size) => make(seed, size * k); }
+  return p;
+}
+
 export const PATTERNS: Pattern[] = [
   { id: 'blob', name: 'Anyflage 標準', kind: 'その他', flatBelow: 0, colors: ['#C2B280', '#4B5D2A', '#5A4028', '#1C1F18'],
     note: '試作からの柄。値ノイズを3層、しきい値で重ねる。どの実物もまねていない。',
@@ -321,6 +338,7 @@ export const PATTERNS: Pattern[] = [
   { id: 'blaze', name: 'ブレイズオレンジ（狩猟の安全色）', kind: '狩猟', flatBelow: 0.0012, colors: ['#FF7900', '#C4500F', '#FFA640', '#1B1B1B'],
     note: '人にははっきり見え、赤と緑を見分けにくい鹿には目立ちにくい、という考えの安全色迷彩。柄はウッドランドと同じ作り。', make: woodland },
 ];
+PATTERNS.forEach(fixSize);
 
 /** 実物の見本から起こした層のタイル。scripts/build-swatches.ts が作る */
 export interface Swatch {
@@ -340,9 +358,9 @@ export interface Swatch {
  * 拡大しても縁が階段にならないよう、層ごとに「その層である度合い」をぼかした面を作り、
  * 面をなめらかに読んで、いちばん度合いの高い層を返す。ブロブを大きくしても輪郭が曲線になる。
  */
-function softFields(sw: Swatch): Float32Array[] {
-  const { w, h, labels } = sw, K = sw.colors.length, R = 3, ker: number[] = [];
-  let sum = 0; for (let i = -R; i <= R; i++) { const v = Math.exp(-i * i / (2 * 1.1 * 1.1)); ker.push(v); sum += v; }
+function softFields(sw: Swatch, sigma: number): Float32Array[] {
+  const { w, h, labels } = sw, K = sw.colors.length, R = Math.ceil(sigma * 3), ker: number[] = [];
+  let sum = 0; for (let i = -R; i <= R; i++) { const v = Math.exp(-i * i / (2 * sigma * sigma)); ker.push(v); sum += v; }
   const out: Float32Array[] = [], tmp = new Float32Array(w * h);
   for (let k = 0; k < K; k++) {
     const f = new Float32Array(w * h);
@@ -358,15 +376,26 @@ function softFields(sw: Swatch): Float32Array[] {
   }
   return out;
 }
-const fieldCache = new WeakMap<Swatch, Float32Array[]>();
+const fieldCache = new WeakMap<Swatch, Map<number, Float32Array[]>>();
+/**
+ * ぼかしの幅（見本の升目の数）。見本の1升が画面で何画素になるかで決める。
+ * 1升が6画素までなら 1.1 升。それより大きく拡大するときは、拡大に合わせて広げる。
+ * 広げないと、升目の並びが輪郭に細かい波として出る（ブロブを 300% より大きくしたとき）。
+ */
+function sigmaFor(scale: number): number {
+  const px = 1000 / scale; // 長辺 1000 画素の絵で、見本の1升が何画素になるか
+  return px <= 6 ? 1.1 : Math.min(8, Math.round(1.1 * px / 6 * 2) / 2);
+}
 export function swatchPattern(sw: Swatch): Pattern {
   const K = sw.colors.length, grainy = K >= 4 && /emr|flecktarn|jgsdf/.test(sw.id);
-  return {
+  return fixSize({
     id: `sw-${sw.id}`, name: sw.name, kind: '実物', colors: sw.colors, flatBelow: grainy ? 0.0025 : 0.0012,
     note: `${sw.note} 形は見本画像を色で分けたもの。出典：${sw.source.title}（${sw.source.author}、${sw.source.license}）。「輪郭のうねり」は効かない。`,
     make: (seed, size) => {
       const { w, h } = sw, scale = w / sw.span / size, ox = hash2(seed, 1, 7) * w, oy = hash2(seed, 2, 7) * h;
-      let fields = fieldCache.get(sw); if (!fields) { fields = softFields(sw); fieldCache.set(sw, fields); }
+      const sigma = sigmaFor(scale);
+      let bySigma = fieldCache.get(sw); if (!bySigma) { bySigma = new Map(); fieldCache.set(sw, bySigma); }
+      let fields = bySigma.get(sigma); if (!fields) { fields = softFields(sw, sigma); bySigma.set(sigma, fields); }
       const F = fields;
       const mod = (t: number, n: number): number => ((t % n) + n) % n;
       return (nx, ny) => {
@@ -387,7 +416,7 @@ export function swatchPattern(sw: Swatch): Pattern {
         return best;
       };
     },
-  };
+  });
 }
 
 export function patternById(id: string): Pattern { return PATTERNS.find((p) => p.id === id) || PATTERNS[0]; }

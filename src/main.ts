@@ -399,7 +399,7 @@ function syncUi(): void {
   $('o-mamt').textContent = `${$('mamt').value}%`; $('o-mfine').textContent = `${$('mfine').value}升`; $('o-msec').textContent = `${$('msec').value}秒`;
   $('motion-box').hidden = !$('motion').checked;
   $('o-mamt2').textContent = `${$('mamt2').value}%`; $('o-mlava').textContent = `${$('mlava').value}%`;
-  $('mamt2').disabled = !$('mkind2').value; $('mlava').disabled = $('mgrow').disabled = !$('lava').checked; $('o-mgrow').textContent = `ブロブ ${$('mgrow').value}個分／秒`; $('lava-note').hidden = !$('lava').checked;
+  $('mamt2').disabled = !$('mkind2').value; $('lava').disabled = !lavaCan(); $('lava-off').hidden = lavaCan(); $('mlava').disabled = $('mgrow').disabled = !$('lava').checked || !lavaCan(); $('o-mgrow').textContent = `ブロブ ${$('mgrow').value}個分／秒`; $('lava-note').hidden = !$('lava').checked || !lavaCan();
   const [vw, vh] = dims(videoLong()); $('video-note').textContent = `動画：${vw & ~1}×${vh & ~1} px、${VIDEO_FPS}fps、${$('msec').value}秒（ループ再生対応）`;
   syncMotion();
 }
@@ -527,7 +527,10 @@ const LAVA_FPS = 15, LAVA_MAX = 120;
 const lavaCount = (): number => Math.max(12, Math.min(LAVA_MAX, Math.round(+$('msec').value * LAVA_FPS)));
 let lavaN = 0;
 let lavaFrames: (HTMLCanvasElement | undefined)[] = [], lavaGen = 0, lavaShown = -1;
-const lavaOn = (): boolean => $('motion').checked && $('lava').checked && plain() && !$('repeat').checked;
+/** いまの柄でラバランプを使えるか。見本画像から起こした柄と、タイルの柄は使えない（時間で動かせるノイズがない） */
+const lavaCanWith = (id: string): boolean => !id.startsWith('sw-') && id !== 'tiles';
+const lavaCan = (): boolean => lavaCanWith($('pattern').value);
+const lavaOn = (): boolean => $('motion').checked && $('lava').checked && lavaCan() && plain() && !$('repeat').checked;
 /** 侵食の早さ。絵が1コマに広がる距離（ブロブの大きさを 1 として）。1周 n コマのとき。スライダーは「1秒にブロブ何個分／秒」 */
 const lavaGrow = (n: number): number => +$('mgrow').value * +$('msec').value / n;
 /** 本番の前に、本当に描いて捨てるコマ数。絵を読む位置のならしを、0 コマ目の前に効かせておくため。0.4 秒ぶん */
@@ -855,8 +858,8 @@ $('save').addEventListener('click', async () => {
 
 engine.sendSwatches(await loadSwatches());
 for (const kind of ['その他', '実物', '軍用', '狩猟'] as const) {
-  const og = document.createElement('optgroup'); og.label = kind === 'その他' ? '標準・その他' : kind === '実物' ? '実物（見本画像から）' : `${kind}（近似）`;
-  for (const pt of PATTERNS.filter((x) => x.kind === kind)) { const o = document.createElement('option'); o.value = pt.id; o.textContent = pt.name; og.appendChild(o); }
+  const og = document.createElement('optgroup'); og.label = kind === 'その他' ? '標準・その他' : kind === '実物' ? '実物（見本画像から・ラバランプ不可）' : `${kind}（近似）`;
+  for (const pt of PATTERNS.filter((x) => x.kind === kind)) { const o = document.createElement('option'); o.value = pt.id; o.textContent = kind !== '実物' && !lavaCanWith(pt.id) ? `${pt.name}（ラバランプ不可）` : pt.name; og.appendChild(o); } // 実物の柄は、見出しにまとめて書く
   $('pattern').appendChild(og);
 }
 all = [...(await loadManifests()), ...(await restoreOwnImages())]; // 前に足した画像も読み戻す

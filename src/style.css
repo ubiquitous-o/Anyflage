@@ -135,3 +135,4 @@ button.danger { background: #b3261e; border-color: #e0563b; color: #fff; font-we
 /* 引いて変えるスライダー。真ん中に印を付けて、「ここから引く」と分かるようにする */
 .jog { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 6px; font-size: 11px; color: var(--dim); margin: 2px 0 4px; }
 .jog input { background: linear-gradient(var(--dim), var(--dim)) center / 1px 12px no-repeat; }
+.switch:has(input:disabled) { opacity: .45; cursor: not-allowed; }

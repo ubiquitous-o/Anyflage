@@ -2,7 +2,7 @@
 // 画面（main.ts）は「何を描くか」を Job にして送り、できた画素を受け取る。
 // 計算を画面と別の場所でやるので、描いているあいだも画面は固まらない。
 import { Kao } from './engine/kao.ts';
-import { PATTERNS, patternById, swatchPattern } from './engine/patterns.ts';
+import { PATTERNS, patternById, setNoiseTime, swatchPattern } from './engine/patterns.ts';
 import type { Swatch } from './engine/patterns.ts';
 import { Material } from './material.ts';
 import type { MaterialOptions, Variant } from './material.ts';
@@ -232,9 +232,11 @@ function renderOriginals(job: Job, p: Params, src: Picker[]): Result {
 /**
  * ラバランプ用に、柄を時間で変える。θ が1周すると、ちょうど同じ柄に戻る。
  * 標準の柄は、しきい値で切るノイズそのものを「止まったノイズ」と「cos・sin で回るノイズ2枚」のまぜ合わせにする。ブロブが生まれ、くっつき、ちぎれる。
- * ほかの柄は、中のノイズに手が届かない（返ってくるのは「どの層か」だけ）。lavaMap で、層の地図を作って渡す。
+ * 手続きで作る柄（軍用・狩猟の近似）も、同じ考え方。柄の生成器が使うノイズと、点の位置を、時間で変える（patterns.ts の setNoiseTime）。
+ *   柄を作り終えたら、呼んだ側で setNoiseTime(0, 0) に戻すこと。
+ * 見本画像から起こした柄と、タイルの柄には、動かせるノイズがない。ラバランプには使えない（柄はそのまま返す）。
  */
-function lavaParams(p: Params, lv: Lava, W: number, H: number): Params {
+function lavaParams(p: Params, lv: Lava): Params {
   const m = Math.min(1, Math.max(0, lv.amount)), c = Math.cos(lv.theta), s = Math.sin(lv.theta), seed = p.seed | 0;
   if (!p.layerAt) {
     // 0 コマ目（θ = 0）では、もとのノイズそのもの。止まった絵と同じ形から動き出して、1周で戻る。
@@ -250,51 +252,12 @@ function lavaParams(p: Params, lv: Lava, W: number, H: number): Params {
       return L;
     } };
   }
-  const map = lavaMap(p, W, H, m, c, s), M = Math.max(W, H);
-  return { ...p, layerAt: (nx, ny) => map[Math.min(H - 1, Math.round(ny * M)) * W + Math.min(W - 1, Math.round(nx * M))] };
-}
-/**
- * 標準でない柄の、ラバランプ用の下地。設定が同じあいだ使い回す。
- * A：いつもの柄の、層の地図。B：同じ柄の離れた所の、層の地図。
- * B はブロブに分けておく（ids）。ブロブごとに、縁からの深さ（dt）、いちばん深い所の深さ（dmax）、現れる時刻を決める2つの数（ha、hb）を持つ。
- */
-let lavaBase: { key: string; A: Uint8Array; B: Uint8Array; ids: Int32Array; dt: Float32Array; dmax: Float32Array; ha: Float32Array; hb: Float32Array; ok: Uint8Array } | null = null;
-/**
- * 標準でない柄の、このコマの層の地図を作る。
- * いつもの柄 A の上に、同じ柄の離れた所 B のブロブを、1つずつ出したり引っこめたりする。
- * B のブロブは、いちばん深い所から現れ、自分の形のまま縁へ向かって太っていく。出きると、同じ色の A のブロブとつながる。引っこむときは、やせて、ちぎれて、消える。
- * 輪郭はいつも「A の縁」か「B のブロブを内側へ削った形」なので、どの柄でもその柄らしい形のまま動く。
- * いつ現れるかは、ブロブの場所で決まる（ゆるやかなノイズ ha・hb を cos・sin で回す）。近くのブロブは近い時刻に現れる。
- * m は溶け具合。大きいほど、同時に出ているブロブが多い。
- */
-function lavaMap(p: Params, W: number, H: number, m: number, c: number, s: number): Uint8Array {
-  const key = [W, H, p.seed, p.size, p.wobble, p.pattern, p.neck, p.notch, p.split, p.cutRef, p.noSplit].join('|'), n = W * H;
-  if (!lavaBase || lavaBase.key !== key) {
-    const base = p.layerAt!, M = Math.max(W, H), seed = p.seed | 0, f = 1 / p.size, wob = p.wobble * p.size * 0.9, OX = 3.71, OY = 5.37;
-    const A = new Uint8Array(n), B = new Uint8Array(n);
-    for (let y = 0, i = 0; y < H; y++) for (let x = 0; x < W; x++, i++) { // 座標とうねりは、エンジン（buildCamo）と同じ決め方
-      const nx = x / M, ny = y / M;
-      const wx = nx + wob * (Kao.vnoise(nx * f * 2.1, ny * f * 2.1, seed + 50) - 0.5), wy = ny + wob * (Kao.vnoise(nx * f * 2.1 + 40, ny * f * 2.1 + 40, seed + 51) - 0.5);
-      A[i] = base(nx, ny, wx, wy); B[i] = base(nx + OX, ny + OY, wx + OX, wy + OY);
-    }
-    // B をブロブに分ける。大きすぎるブロブ、くびれ、えぐれの切り方は、絵と同じ設定で。切ってあるので、縞のような長い形も、ひとかたまりずつ現れる
-    const bc = Kao.buildCamo(W, H, { ...p, layerAt: (nx, ny) => B[Math.min(H - 1, Math.round(ny * M)) * W + Math.min(W - 1, Math.round(nx * M))] }), cm = bc.comps;
-    const ha = new Float32Array(cm.count), hb = new Float32Array(cm.count), ok = new Uint8Array(cm.count), g = 1 / (p.size * 2.4);
-    for (let k = 0; k < cm.count; k++) {
-      const x = cm.cx[k] / M * g, y = cm.cy[k] / M * g;
-      ha[k] = Kao.fbm(x, y, seed + 900) - 0.5; hb[k] = Kao.fbm(x + 31.7, y + 17.3, seed + 901) - 0.5;
-      ok[k] = cm.area[k] < n * 0.08 ? 1 : 0; // 切れずに残った広すぎるブロブは出さない。絵の大半がいちどに入れ替わってしまう
-    }
-    lavaBase = { key, A, B, ids: bc.ids, dt: bc.dt, dmax: cm.dmax, ha, hb, ok };
+  const pat = patternById(p.pattern || 'blob');
+  if (!pat.id.startsWith('sw-') && pat.id !== 'tiles') { // 0 コマ目（θ = 0）は重みがどちらも 0。止まった絵と同じ柄
+    setNoiseTime(m * (1 - c) / 2, m * s / 2);
+    return { ...p, layerAt: pat.make(p.seed, p.size) };
   }
-  const { A, B, ids, dt, dmax, ha, hb, ok } = lavaBase, out = new Uint8Array(A), lo = 0.02 + (1 - m) * 0.2, w = 0.07, lim = new Float32Array(dmax.length);
-  for (let k = 0; k < lim.length; k++) { // lim：これより深い所だけ出す。出きったら 0、出ていなければ無限大
-    let r = ok[k] ? (ha[k] * (1 - c) + hb[k] * s - lo) / (2 * w) : 0; // 0 コマ目（θ = 0）では、どのブロブも出ていない。止まった絵と同じ形
-    r = r <= 0 ? 0 : r >= 1 ? 1 : r * r * (3 - 2 * r);
-    lim[k] = r <= 0 ? Infinity : (dmax[k] + 0.5) * (1 - r);
-  }
-  for (let i = 0; i < n; i++) if (dt[i] > lim[ids[i]]) out[i] = B[i];
-  return out;
+  return p; // 動かせるノイズがない柄（見本画像から起こした柄、タイル）。画面の側で、ラバランプを選べないようにしてある
 }
 /** 前のコマの状態。次のコマへ、ブロブの鍵（＝同じ素材・同じ向き）と、絵が入っている範囲を引き継ぐ */
 /**
@@ -340,8 +303,10 @@ let lavaPrev: {
  * ふつうに輪郭が動くぶんは、1コマの広がりより小さいので、すぐ届く。
  */
 function renderLava(job: Job, p0: Params, src: Picker[]): Result {
-  const { W, H } = job, lv = job.lava!, p = lavaParams(p0, lv, W, H), M = Math.max(W, H), n = W * H;
-  const base = Kao.buildCamo(W, H, p), bm = base.comps, bids = base.ids;
+  const { W, H } = job, lv = job.lava!, p = lavaParams(p0, lv), M = Math.max(W, H), n = W * H;
+  let base: Camo;
+  try { base = Kao.buildCamo(W, H, p); } finally { setNoiseTime(0, 0); } // 柄のノイズを、止まった状態に戻す
+  const bm = base.comps, bids = base.ids;
   const prev = lv.first || !lavaPrev || lavaPrev.W !== W || lavaPrev.H !== H ? null : lavaPrev;
   const dry = lv.pass !== 'draw', seed = p.seed | 0;
   if (lv.first && lv.pass === 'f') lavaKeys = { F: [], B: [] };

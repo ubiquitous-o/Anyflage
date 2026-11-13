@@ -5,7 +5,18 @@
 import { Kao } from './kao.ts';
 import type { LayerFn } from './types.ts';
 
-const { hash2, vnoise } = Kao;
+const { hash2 } = Kao;
+// 柄の生成器が使う値ノイズ。ふつうは Kao.vnoise そのもの。
+// 動画（ラバランプ）のときだけ、時間で変わるノイズにする：もとのノイズに、別のノイズ2枚を重み tu・tv でまぜる。
+// 重みがどちらも 0 なら、もとのノイズと同じ。まぜると山が低くなるので、高さを戻す（tn）。
+let tu = 0, tv = 0, tn = 1;
+/** 柄のノイズを時間で変える。u, v はまぜる重み。使い終わったら (0, 0) に戻すこと */
+export function setNoiseTime(u: number, v: number): void { tu = u; tv = v; tn = Math.hypot(1 - u, u, v) || 1; }
+function vnoise(x: number, y: number, s: number): number {
+  const a = Kao.vnoise(x, y, s);
+  if (!tu && !tv) return a;
+  return 0.5 + ((1 - tu) * (a - 0.5) + tu * (Kao.vnoise(x, y, s + 1000) - 0.5) + tv * (Kao.vnoise(x, y, s + 2000) - 0.5)) / tn;
+}
 
 export interface Pattern {
   id: string;
@@ -24,6 +35,16 @@ export interface Pattern {
   make(seed: number, size: number): LayerFn;
 }
 
+/**
+ * 升ごとの乱数のうち、「場所」や「大きさ」に使うもの（ばらまいた円の中心と半径、ボロノイの点）。
+ * 動画のときは、別の乱数2つへ向けて少しずつずらす。点が動き、円が重なったり離れたり、多角形が形を変えたりする。
+ * 円があるかないか、多角形が何色か、のように「どちらか」を決める乱数には使わない（途中でいきなり切り替わってしまう）。
+ */
+function hmove(ix: number, iy: number, s: number): number {
+  const a = hash2(ix, iy, s);
+  if (!tu && !tv) return a;
+  return a + tu * (hash2(ix, iy, s + 1000) - a) + tv * (hash2(ix, iy, s + 2000) - 0.5);
+}
 /** 値ノイズを oct 段重ねる。0〜1、平均 0.5 */
 function fbm(x: number, y: number, s: number, oct: number): number {
   let a = 0, amp = 1, tot = 0;
@@ -37,7 +58,7 @@ function inDots(u: number, v: number, cell: number, s: number, density: number, 
   for (let oy = -1; oy <= 1; oy++) for (let ox = -1; ox <= 1; ox++) {
     const ix = cx + ox, iy = cy + oy;
     if (hash2(ix, iy, s) > density) continue;
-    const px = ix + hash2(ix, iy, s + 1), py = iy + hash2(ix, iy, s + 2), r = rmin + (rmax - rmin) * hash2(ix, iy, s + 3);
+    const px = ix + hmove(ix, iy, s + 1), py = iy + hmove(ix, iy, s + 2), r = rmin + (rmax - rmin) * Math.min(1, Math.max(0, hmove(ix, iy, s + 3)));
     if ((px - gx) * (px - gx) + (py - gy) * (py - gy) < r * r) return true;
   }
   return false;
@@ -48,7 +69,7 @@ function voronoi(u: number, v: number, s: number): number {
   const cx = Math.floor(u), cy = Math.floor(v);
   let best = 1e9, id = 0;
   for (let oy = -1; oy <= 1; oy++) for (let ox = -1; ox <= 1; ox++) {
-    const ix = cx + ox, iy = cy + oy, px = ix + hash2(ix, iy, s), py = iy + hash2(ix, iy, s + 1);
+    const ix = cx + ox, iy = cy + oy, px = ix + hmove(ix, iy, s), py = iy + hmove(ix, iy, s + 1);
     const d = (px - u) * (px - u) + (py - v) * (py - v);
     if (d < best) { best = d; id = ix * 7919 + iy * 104729; }
   }

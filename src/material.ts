@@ -18,6 +18,8 @@ export interface MaterialOptions {
   /** ならす飛びの上限（升の数） */
   softLimit?: number;
 }
+/** 版1つ。key は「どの設定の、どの縦横比の版か」 */
+export interface Variant { key: string; source: Source | null }
 
 export class Material {
   private cache = new Map<string, Source | null>();
@@ -39,8 +41,25 @@ export class Material {
     };
   }
 
+  /**
+   * この設定で使う版を全部作り、方式ごとの準備（円へ写す表など）も済ませる。
+   * 別の場所（別の Worker）で作って、描く場所へ install で渡すためのもの。
+   */
+  prepare(o: MaterialOptions, method: string, mix: number, imp: number, trim: boolean): Variant[] {
+    const out: Variant[] = [];
+    for (const aspect of o.fitBlob ? [0, ...BUCKETS] : [0]) {
+      const source = this.variant(o, aspect);
+      if (source) Kao.prepareSource(source, method, mix, imp, trim);
+      out.push({ key: keyOf(o, aspect), source });
+      if (!source && aspect === 0) break; // 形を取れない素材
+    }
+    return out;
+  }
+  /** よそで作った版を入れる */
+  install(list: Variant[]): void { for (const v of list) this.cache.set(v.key, v.source); }
+
   private variant(o: MaterialOptions, aspect: number): Source | null {
-    const key = o.carve > 0 ? `${o.carve}|${o.protect}|${aspect}|${o.soften ? 1 : 0}|${o.softLimit ?? 14}` : '0';
+    const key = keyOf(o, aspect);
     const hit = this.cache.get(key);
     if (hit !== undefined) return hit;
     const im = o.carve > 0 ? Kao.carve(this.raw.data, this.raw.w, this.raw.h, { amount: o.carve, aspect, protect: o.protect, res: 192, soften: o.soften ? 3 : 0, softenLimit: o.softLimit }) : this.raw;
@@ -49,6 +68,7 @@ export class Material {
     return made;
   }
 }
+const keyOf = (o: MaterialOptions, aspect: number): string => (o.carve > 0 ? `${o.carve}|${o.protect}|${aspect}|${o.soften ? 1 : 0}|${o.softLimit ?? 14}` : '0');
 
 /** 重心まわり360本の線ごとに、外接矩形までの半径、輪郭までの半径、中身のある半径の一覧を記録する */
 export function withShape(im: Raster): Source | null {

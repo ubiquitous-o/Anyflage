@@ -2,8 +2,10 @@
 // 状態は URL の ? に書ける（例 ?groups=ヒト,ネコ&method=harmonic&compare=6&seed=48213）。
 import { Kao } from './engine/kao.ts';
 import { PATTERNS, patternById } from './engine/patterns.ts';
-import type { Camo, Method, Params, Picker, Raster, RGB, LayerFn } from './engine/types.ts';
-import { Material } from './material.ts';
+import type { Method, Params, RGB } from './engine/types.ts';
+import * as engine from './client.ts';
+import type { Job } from './render.ts';
+import type { MaterialOptions } from './material.ts';
 import { addOwnImage, forgetOwnImages, loadCutout, loadManifests, restoreOwnImages } from './samples.ts';
 import { loadText, saveText } from './store.ts';
 import { initialLang, setLang, tr } from './i18n.ts';
@@ -51,15 +53,17 @@ const PREVIEW = 720, EXPORT = 2400;
 
 const view = $<HTMLCanvasElement>('view'), ctx = view.getContext('2d')!;
 let all: Sample[] = [], groups: string[] = [];
-const picked = new Set<string>(), materials = new Map<string, Material>();
+const picked = new Set<string>(), sent = new Set<string>(); // sent：描く Worker に渡した素材
 let ownBusy = false, exporting = false;
-let seed = 48213, shuf = 0, showSources = false, camo: Camo | null = null, camoKey = '', token = 0;
+let seed = 48213, shuf = 0, showSources = false, lastBlobs = 0;
+/** くびれなどを切る場所を決めるときの、絵の長辺。画面用と書き出し用で同じ所が切れるように、いつもこの大きさで決める */
+const CUT_REF = 720;
 
 function params(patternId = $('pattern').value): Params {
   const pat = patternById(patternId), size = sizeGood / 100;
   return {
     pattern: pat.id, layerAt: pat.id === 'blob' ? undefined : pat.make(seed, size), flatBelow: pat.flatBelow * num('flat'), flatLayers: pat.flatLayers, noSplit: pat.noSplit, split: $('split').value,
-    seed, size, neck: num('neck'), notch: num('notch'), wobble: num('wobble'), fit: num('fit'), dist: num('dist'), rot: num('rot'), zoom: 1, tint: num('tint'),
+    seed, size, cutRef: CUT_REF, neck: num('neck'), notch: num('notch'), wobble: num('wobble'), fit: num('fit'), dist: num('dist'), rot: num('rot'), zoom: 1, tint: num('tint'),
     smooth: $('smooth').checked, trim: $('trim').checked, assign: $('assign').value, method: $('method').value as Method, imp: num('imp'), mix: num('mix'), squeeze: num('squeeze'),
   };
 }
@@ -166,7 +170,6 @@ function setStatus(t: string): void { $('status').textContent = t; }
  * 作業中の表示。プレビューの上に、回る輪と文言を重ねる。null で消す。
  * 計算は画面と同じ場所で走るので、あいだは画面が止まる。輪は transform の動きなので、止まっているあいだも回る。
  */
-let busyCount = 0;
 function setBusy(t: string | null): void {
   const el = $('busy');
   if (t === null) { el.hidden = true; $('viewport').classList.remove('working'); return; }
@@ -185,140 +188,40 @@ function chosen(): Sample[] {
     return list.map((s, i) => ({ s, k: Kao.hash2(i, 71, shuf) })).sort((a, b) => a.k - b.k).slice(0, per).map((e) => e.s);
   });
 }
-/** 包みから、縮める前の切り抜きを引く。「元の素材と並べる」用 */
-const rawOf = new WeakMap<Picker, Raster>();
-async function sources(): Promise<Picker[]> {
-  const o = { carve: num('carve'), protect: num('protect'), fitBlob: $('fitblob').checked, soften: $('soften').checked, softLimit: +$('softlim').value }, out: Picker[] = [];
+/** いまの設定での、素材の作り方 */
+const matOptions = (): MaterialOptions => ({ carve: num('carve'), protect: num('protect'), fitBlob: $('fitblob').checked, soften: $('soften').checked, softLimit: +$('softlim').value });
+/** 選んだ素材の切り抜きを読み、描く Worker に渡す。渡した id を返す */
+async function sources(): Promise<string[]> {
+  const ids: string[] = [];
   for (const s of chosen()) {
-    let m = materials.get(s.id);
-    if (!m) { m = new Material(await loadCutout(s)); materials.set(s.id, m); }
-    const p = m.picker(o);
-    if (p) { out.push(p); rawOf.set(p, m.raw); }
+    if (!sent.has(s.id)) { engine.addMaterial(s.id, await loadCutout(s)); sent.add(s.id); }
+    ids.push(s.id);
   }
-  return out;
+  return ids;
 }
-
-function getCamo(W: number, H: number, p: Params, reuse: boolean): Camo {
-  const key = [W, H, p.seed, p.size, p.wobble, p.pattern, p.neck, p.notch, p.split].join('|');
-  if (reuse && camo && camoKey === key) return camo;
-  const c = Kao.buildCamo(W, H, p);
-  if (reuse) { camo = c; camoKey = key; }
-  return c;
-}
-/**
- * ブロブの縁の、画素の段々をなじませる。
- * 縁の画素ごとに、まわり5×5のうち自分と同じブロブが占める割合を見て、縁が画素のどのあたりを通るか見積もる。
- * その割合で、隣のブロブの色を混ぜる。ブロブの形（ids）は変えない。色だけ。
- */
-const SOFT_W = [1, 3, 4, 3, 1];
-function softenEdges(img: ImageData, cam: Camo): void {
-  const W = img.width, H = img.height, ids = cam.ids, d = img.data, src = new Uint8ClampedArray(d);
-  for (let y = 0; y < H; y++) for (let x = 0, i = y * W; x < W; x++, i++) {
-    const c = ids[i];
-    if (!((x > 0 && ids[i - 1] !== c) || (x < W - 1 && ids[i + 1] !== c) || (y > 0 && ids[i - W] !== c) || (y < H - 1 && ids[i + W] !== c))) continue;
-    let same = 0, all = 0, r = 0, g = 0, b = 0, ow = 0;
-    for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) {
-      const xx = x + dx, yy = y + dy; if (xx < 0 || yy < 0 || xx >= W || yy >= H) continue;
-      const j = yy * W + xx, w = SOFT_W[dx + 2] * SOFT_W[dy + 2]; all += w;
-      if (ids[j] === c) same += w;
-      else if (dx >= -1 && dx <= 1 && dy >= -1 && dy <= 1) { r += src[j * 4] * w; g += src[j * 4 + 1] * w; b += src[j * 4 + 2] * w; ow += w; }
-    }
-    if (!ow) continue;
-    const a = Math.min(1, Math.max(0.5, 0.5 + (same / all - 0.5) * 2.2)), o = i * 4;
-    d[o] = src[o] * a + r / ow * (1 - a); d[o + 1] = src[o + 1] * a + g / ow * (1 - a); d[o + 2] = src[o + 2] * a + b / ow * (1 - a);
-  }
-}
-/**
- * 上下左右がつながる迷彩の層。幅 tw・高さ th（画素）ごとに同じ柄がくり返す。
- * もとの柄はくり返さないので、そのまま並べると端で柄が切れる。そこで、もとの柄から2か所を切り出し、
- * 1枚目は升目の中ほどで、2枚目は升目の端のあたりで使う。2枚の境目は、同じ周期でうねる線にする。
- * 返す関数は、tw×th の升を2×2に敷いた、長辺 M2 の大きなキャンバスの座標で呼ばれる。
- */
-function tileableLayer(p: Params, tw: number, th: number, M2: number): LayerFn {
-  const base = p.layerAt, seed = p.seed | 0, size = p.size, f = 1 / size, wob = p.wobble * size * 0.9, Mt = Math.max(tw, th), TAU = Math.PI * 2;
-  const at = (qx: number, qy: number): number => { // 升の中の画素 (qx, qy) の層。うねりも、エンジンと同じ式でここで掛ける
-    const nx = qx / Mt, ny = qy / Mt;
-    const wx = nx + wob * (Kao.vnoise(nx * f * 2.1, ny * f * 2.1, seed + 50) - 0.5), wy = ny + wob * (Kao.vnoise(nx * f * 2.1 + 40, ny * f * 2.1 + 40, seed + 51) - 0.5);
-    if (base) return base(nx, ny, wx, wy);
-    let L = 0; for (let k = 1; k < 4; k++) if (Kao.fbm(wx * f / 1.45 + k * 31.7, wy * f + k * 17.3, seed + k) > Kao.THR[k]) L = k; // Anyflage 標準
-    return L;
-  };
-  const mod = (t: number, n: number): number => ((t % n) + n) % n;
-  return (nx, ny) => {
-    const px = nx * M2, py = ny * M2, u = mod(px, tw), v = mod(py, th), ub = mod(px + tw / 2, tw), vb = mod(py + th / 2, th);
-    const wa = Math.min(Math.min(u, tw - u) / tw, Math.min(v, th - v) / th), wb = Math.min(Math.min(ub, tw - ub) / tw, Math.min(vb, th - vb) / th);
-    const a = TAU * px / tw, b = TAU * py / th, wave = 0.05 * (Math.sin(3 * a + 1.3) * Math.cos(2 * b) + Math.sin(5 * b + 0.4) * Math.cos(4 * a + 2.1)) + 0.03 * Math.sin(7 * a + 3 * b);
-    return wa + wave > wb ? at(u, v) : at(ub + tw * 1.37, vb + th * 2.11); // 2枚目は、もとの柄の離れた所から取る
-  };
-}
-/**
- * リピートできる絵を1枚（W×H）作る。
- * 2×2 ぶんの大きなキャンバスで迷彩を作り、真ん中の W×H を切り出す。升の端をまたぐブロブも、欠けずに丸ごと描ける。
- * 左端をまたぐブロブと右端をまたぐブロブは、ちょうど W だけずれた同じ形になる。同じ鍵を持たせて、同じ素材・同じ向きで描く。
- */
-function renderTile(W: number, H: number, src: Picker[], p: Params): ImageData {
-  const W2 = W * 2, H2 = H * 2, x0 = W >> 1, y0 = H >> 1;
-  // 大きすぎるブロブを割る処理は、場所によって割り方が変わるので使わない。えぐれ切りは、正方形のときだけ写しどうしで同じ所が切れる
-  const p2: Params = { ...p, layerAt: tileableLayer(p, W, H, Math.max(W2, H2)), noSplit: true, split: 'none', notch: W === H ? p.notch : 0, flatBelow: (p.flatBelow || 0) / 4, clip: [x0 - 1, y0 - 1, x0 + W, y0 + H] };
-  const cam = Kao.buildCamo(W2, H2, p2), cm = cam.comps, keys = new Int32Array(cm.count);
-  for (let c = 0; c < cm.count; c++) keys[c] = (Math.imul(cm.x0[c] % W, 73856093) ^ Math.imul(cm.y0[c] % H, 19349663) ^ Math.imul(cm.area[c], 83492791)) & 0x7fffffff;
-  cam.keys = keys;
-  const big = new ImageData(W2, H2);
-  Kao.renderCamo(big.data, cam, src, colors(p.pattern || 'blob'), p2);
-  if ($('soft').checked) softenEdges(big, cam);
-  if ($('edges').checked) { const ids = cam.ids, d = big.data; for (let y = y0; y < y0 + H; y++) for (let x = x0, i = y * W2 + x0; x < x0 + W; x++, i++) if (ids[i] !== ids[i + 1] || ids[i] !== ids[i + W2]) { d[i * 4] = 255; d[i * 4 + 1] = 255; d[i * 4 + 2] = 255; } }
-  const out = new ImageData(W, H);
-  for (let y = 0; y < H; y++) out.data.set(big.data.subarray(((y0 + y) * W2 + x0) * 4, ((y0 + y) * W2 + x0 + W) * 4), y * W * 4);
-  camo = cam; // 画面下のブロブ数の表示用
-  return out;
-}
-function renderOne(W: number, H: number, src: Picker[], p: Params, reuse: boolean): ImageData {
-  const img = new ImageData(W, H);
-  const cam = getCamo(W, H, p, reuse);
-  Kao.renderCamo(img.data, cam, src, colors(p.pattern || 'blob'), p);
-  if ($('soft').checked) softenEdges(img, cam);
-  if ($('edges').checked) { // ブロブの境目を白い線で描く。どこで切れているか見る用
-    const ids = cam.ids, d = img.data;
-    for (let y = 0; y < H - 1; y++) for (let x = 0, i = y * W; x < W - 1; x++, i++) if (ids[i] !== ids[i + 1] || ids[i] !== ids[i + W]) { d[i * 4] = 255; d[i * 4 + 1] = 255; d[i * 4 + 2] = 255; }
-  }
-  return img;
-}
-/**
- * 押し込む前の素材を、同じブロブの場所にそのまま置いた絵。歪めない。縮めない。
- * ブロブの外接矩形に収まる大きさで中央に置き、ブロブの形で切り抜く。どの素材がどのブロブに入るか、左右の向きはエンジンと同じ決め方。
- */
-function renderOriginals(W: number, H: number, src: Picker[], p: Params, reuse: boolean): ImageData {
-  const img = new ImageData(W, H), d = img.data, cam = getCamo(W, H, p, reuse), cm = cam.comps, ids = cam.ids, cols = colors(p.pattern || 'blob');
-  const np = src.length, pick = Kao.assignSources(cam, np, p);
-  for (let c = 0; c < cm.count; c++) {
-    const L = cm.layer[c], col = cols[L % cols.length], bx = cm.x0[c], by = cm.y0[c], bw = cm.x1[c] - bx + 1, bh = cm.y1[c] - by + 1;
-    const raw = pick[c] < 0 ? null : rawOf.get(src[pick[c]]) || null;
-    const flip = Kao.hash2(c, 37, p.seed | 0) < 0.5 ? -1 : 1, k = raw ? Math.min(bw / raw.w, bh / raw.h) : 1;
-    for (let y = by; y < by + bh; y++) for (let x = bx, i = y * W + bx; x < bx + bw; x++, i++) {
-      if (ids[i] !== c) continue;
-      let r = col[0], g = col[1], b = col[2];
-      if (raw) {
-        const sx = Math.round(raw.w / 2 + (x - bx - bw / 2) * flip / k), sy = Math.round(raw.h / 2 + (y - by - bh / 2) / k), si = (sy * raw.w + sx) * 4;
-        if (sx >= 0 && sy >= 0 && sx < raw.w && sy < raw.h && raw.data[si + 3] > 110) { r = raw.data[si]; g = raw.data[si + 1]; b = raw.data[si + 2]; }
-      }
-      d[i * 4] = r; d[i * 4 + 1] = g; d[i * 4 + 2] = b; d[i * 4 + 3] = 255;
-    }
-  }
-  return img;
+/** 絵を1枚、Worker に描いてもらう。設定のうち関数（layerAt）は送れないので外す。柄は名前から向こうで作る */
+async function paint(kind: Job['kind'], W: number, H: number, mats: string[], p: Params, reuse: boolean): Promise<ImageData> {
+  const job: Job = { kind, W, H, p: { ...p, layerAt: undefined }, colors: colors(p.pattern || 'blob') as number[][], mats, mat: matOptions(), soft: $('soft').checked, edges: $('edges').checked, reuse };
+  const r = await engine.render(job);
+  lastBlobs = r.blobs;
+  return new ImageData(r.data, r.W, r.H);
 }
 interface Tile { label: string; p: Params }
 /** 同じ素材で、方式だけ、または柄だけ変えて並べる */
-function renderSheet(tile: number, cols: number, tiles: Tile[], src: Picker[], reuse: boolean): HTMLCanvasElement {
+async function renderSheet(tile: number, cols: number, tiles: Tile[], src: string[], stale: () => boolean): Promise<HTMLCanvasElement> {
   const rows = Math.ceil(tiles.length / cols);
   const c = document.createElement('canvas'); c.width = tile * cols; c.height = tile * rows;
   const g = c.getContext('2d')!, fs = Math.max(11, Math.round(tile / 24));
-  tiles.forEach((t, k) => {
+  for (let k = 0; k < tiles.length; k++) {
+    if (stale()) break; // 新しい描き直しが待っている。残りは描かない
+    const t = tiles[k];
+    setBusy(`描いている… ${k + 1}/${tiles.length}`);
     const x = (k % cols) * tile, y = Math.floor(k / cols) * tile;
-    g.putImageData(renderOne(tile, tile, src, t.p, reuse), x, y);
+    g.putImageData(await paint('one', tile, tile, src, t.p, false), x, y);
     g.font = `700 ${fs}px "Hiragino Sans", sans-serif`; g.textBaseline = 'top';
     g.fillStyle = 'rgba(20,23,15,.82)'; g.fillRect(x, y, g.measureText(t.label).width + fs, fs * 1.7);
     g.fillStyle = '#F3F4EA'; g.fillText(tr(t.label), x + fs / 2, y + fs * 0.35);
-  });
+  }
   g.fillStyle = 'rgba(20,23,15,.82)';
   for (let k = 1; k < cols; k++) g.fillRect(k * tile - 1, 0, 2, c.height);
   for (let k = 1; k < rows; k++) g.fillRect(0, k * tile - 1, c.width, 2);
@@ -348,39 +251,60 @@ function bestCols(n: number): number {
   for (let c = 1; c <= n; c++) { const r = Math.ceil(n / c), sc = Math.min(vw / (c * tw), vh / (r * (th + 6))); if (sc > bs) { bs = sc; best = c; } }
   return best;
 }
-async function produce(longEdge: number, reuse: boolean): Promise<HTMLCanvasElement> {
+/** 素材の準備を、複数の Worker に分けて先に済ませる。進み具合を画面に出す */
+async function warm(mats: string[], method: string): Promise<void> {
+  const p = params();
+  await engine.prepare(mats, matOptions(), method, p.mix === undefined ? 0.5 : p.mix, p.imp || 0, !!p.trim, (done, total) => setBusy(`素材を準備している… ${done}/${total}`));
+}
+/**
+ * 画面用の絵の長辺。枠に全体を収めたときの画素数に合わせる。引き伸ばしてぼやけないように。
+ * 細かい画面（Retina など）では、その細かさのぶんも足す。重くなりすぎないよう 1440 まで
+ */
+function previewLong(): number {
+  const vw = viewport.clientWidth, vh = viewport.clientHeight, [rw, rh] = ratioNow();
+  if (!vw || !vh) return PREVIEW;
+  const s = Math.min(vw / rw, vh / rh), dpr = Math.min(2, window.devicePixelRatio || 1);
+  return Math.round(Math.min(1440, Math.max(PREVIEW, Math.max(rw, rh) * s * dpr)));
+}
+async function produce(longEdge: number, reuse: boolean, stale: () => boolean = () => false): Promise<HTMLCanvasElement> {
   if (showSources) return renderSources();
-  const src = await sources(), cmp = $('compare').value;
+  const src = await sources(), cmp = $('compare').value, p = params();
+  const canvasOf = (img: ImageData, n = 1): HTMLCanvasElement => { const c = document.createElement('canvas'); c.width = img.width * n; c.height = img.height * n; for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) c.getContext('2d')!.putImageData(img, i * img.width, j * img.height); return c; };
+  if (cmp === 'patterns' || cmp === '10') { // 並べて比べる。方式ごとの準備は、描くときにそれぞれ作る。ここではカービング版だけ先に作る
+    await warm(src, 'radial');
+    if (cmp === 'patterns') return renderSheet(Math.round(longEdge / 3), bestCols(PATTERNS.length), PATTERNS.map((pt) => ({ label: pt.name, p: params(pt.id) })), src, stale);
+    return renderSheet(Math.round(longEdge / 2.5), bestCols(TILES[cmp].length), TILES[cmp].map((m) => ({ label: LABELS[m], p: { ...p, method: m } })), src, stale);
+  }
+  await warm(src, p.method || 'radial');
+  if (reuse) setBusy('描いている…'); else setBusy(`書き出している…（${dims(longEdge).join('×')} px。数秒かかる）`);
   if (cmp === 'orig') { // 左に押し込んだ後、右に元の素材
-    const [W, H] = dims(Math.round(longEdge * 2 / 3)), p = params(), c = document.createElement('canvas'); c.width = W * 2 + 8; c.height = H;
+    const [W, H] = dims(Math.round(longEdge * 2 / 3)), c = document.createElement('canvas'); c.width = W * 2 + 8; c.height = H;
     const g = c.getContext('2d')!; g.fillStyle = '#14170F'; g.fillRect(0, 0, c.width, H);
-    g.putImageData(renderOne(W, H, src, p, reuse), 0, 0); g.putImageData(renderOriginals(W, H, src, p, reuse), W + 8, 0);
+    g.putImageData(await paint('one', W, H, src, p, reuse), 0, 0); g.putImageData(await paint('orig', W, H, src, p, reuse), W + 8, 0);
     return c;
   }
-  if (cmp === 'patterns') return renderSheet(Math.round(longEdge / 3), bestCols(PATTERNS.length), PATTERNS.map((pt) => ({ label: pt.name, p: params(pt.id) })), src, false);
-  if (cmp) { const p = params(); return renderSheet(Math.round(longEdge / 2.5), bestCols(TILES[cmp].length), TILES[cmp].map((m) => ({ label: LABELS[m], p: { ...p, method: m } })), src, reuse); }
-  const [W, H] = dims(longEdge), c = document.createElement('canvas');
-  if ($('repeat').checked) { // リピートできる絵。画面では 2×2 に並べて、継ぎ目を見られるようにする。書き出しは1枚
-    const tile = renderTile(W, H, src, params()), n = reuse ? 2 : 1, g = c.getContext('2d')!;
-    c.width = W * n; c.height = H * n;
-    for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) c.getContext('2d')!.putImageData(tile, i * W, j * H);
-    void g;
-    return c;
-  }
-  c.width = W; c.height = H;
-  c.getContext('2d')!.putImageData(renderOne(W, H, src, params(), reuse), 0, 0);
-  return c;
+  const [W, H] = dims(longEdge);
+  // リピートできる絵。画面では 2×2 に並べて、継ぎ目を見られるようにする。書き出しは1枚
+  if ($('repeat').checked) return canvasOf(await paint('tile', W, H, src, p, reuse), reuse ? 2 : 1);
+  return canvasOf(await paint('one', W, H, src, p, reuse));
 }
 
+// 描き直しは、いちどに1つだけ走らせる。走っているあいだに設定が変わったら、終わってから最新の設定でもう1回だけ描く。
+// 計算は Worker の中なので、待っているあいだも画面は動く
+let drawing = false, wanted = false;
 async function draw(): Promise<void> {
-  const mine = ++token, t0 = performance.now();
-  if (exporting) return; // 書き出しのあいだは描き直さない。終わったら書き出しの側が描き直す
-  busyCount++; setBusy(chosen().length > 12 || $('compare').value ? '描いている…（枚数が多いと時間がかかる）' : '描いている…');
-  await paintNow(); // 「描いている」を先に画面へ出す
-  if (mine !== token) { busyCount--; return; }
+  wanted = true;
+  if (drawing || exporting) return; // 書き出しのあいだは描き直さない。終わったら書き出しの側が描き直す
+  drawing = true;
+  try { while (wanted && !exporting) { wanted = false; await drawOnce(); } } finally { drawing = false; }
+}
+async function drawOnce(): Promise<void> {
+  const t0 = performance.now();
+  setBusy('描いている…');
   try {
-    const c = await produce($('compare').value ? 1080 : PREVIEW, true);
-    if (mine !== token) return;
+    const cmp = $('compare').value;
+    const c = await produce(cmp ? 1080 : $('repeat').checked ? PREVIEW : previewLong(), true, () => wanted);
+    if (wanted && cmp) return; // 並べて比べる絵を、途中でやめた。次の描き直しに任せる
     keepBefore(); // 描き替える前の絵を取っておく。「前の絵」ボタンで見比べられる
     const resized = view.width !== c.width || view.height !== c.height;
     view.width = c.width; view.height = c.height; ctx.drawImage(c, 0, 0);
@@ -388,12 +312,12 @@ async function draw(): Promise<void> {
     if (resized) layoutView(); // 絵の大きさが変わったら、置き方を合わせ直す
     drawBackdrop(); // 柄や色が変わっていれば、枠の背景も描き直す
     const n = chosen().length;
-    $('s-info').textContent = showSources ? `素材 ${n}枚` : `シード ${seed}・ブロブ ${camo ? camo.comps.count : 0}・素材 ${n}枚・${Math.round(performance.now() - t0)}ms`;
+    $('s-info').textContent = showSources ? `素材 ${n}枚` : `シード ${seed}・ブロブ ${lastBlobs}・素材 ${n}枚・${Math.round(performance.now() - t0)}ms`;
     setStatus(all.length ? (n ? '' : '種類を1つ選んで。') : '素材がまだない。「自分の画像を足す」から入れて。');
   } catch (e) {
     setStatus(e instanceof Error ? e.message : String(e));
   } finally { // 途中でやめたときも、作業中の表示を必ず片づける
-    if (--busyCount <= 0) { busyCount = 0; if (!exporting && !ownBusy) setBusy(null); }
+    if (!wanted && !exporting && !ownBusy) setBusy(null);
   }
   writeUrl();
 }
@@ -696,7 +620,7 @@ $('ownforget').addEventListener('click', async () => { // 押し間違いで消�
   await forgetOwnImages();
   const gone = new Set(all.filter((s) => s.set === 'own').map((s) => s.group));
   all = all.filter((s) => s.set !== 'own'); groups = groups.filter((gname) => !gone.has(gname) || all.some((s) => s.group === gname));
-  for (const gname of gone) if (!groups.includes(gname)) { picked.delete(gname); materials.forEach((_m, id) => { if (id.startsWith('own-')) materials.delete(id); }); }
+  for (const gname of gone) if (!groups.includes(gname)) { picked.delete(gname); const dead = [...sent].filter((id) => id.startsWith('own-')); for (const id of dead) sent.delete(id); engine.dropMaterials(dead); }
   drawChips(); syncUi(); void draw();
 });
 $('showsrc').addEventListener('change', () => { showSources = $('showsrc').checked; void draw(); });
@@ -706,7 +630,7 @@ $('save').addEventListener('click', async () => {
   exporting = true; btn.disabled = true; btn.textContent = '書き出している…';
   setStatus(''); setBusy(`書き出している…（${ew}×${eh} px。数秒かかる）`);
   await paintNow();
-  const done = (msg: string): void => { exporting = false; btn.disabled = false; btn.textContent = 'PNGを保存'; setBusy(null); setStatus(msg); };
+  const done = (msg: string): void => { exporting = false; btn.disabled = false; btn.textContent = 'PNGを保存'; setBusy(null); setStatus(msg); if (wanted) void draw(); }; // 書き出しのあいだに設定が変わっていたら、ここで描き直す
   try {
     const c = await produce(exportLong(), false);
     setBusy('ファイルにしている…'); await paintNow();
@@ -719,7 +643,7 @@ $('save').addEventListener('click', async () => {
   } catch (e) { done(e instanceof Error ? e.message : String(e)); }
 });
 
-await loadSwatches();
+engine.sendSwatches(await loadSwatches());
 for (const kind of ['その他', '実物', '軍用', '狩猟'] as const) {
   const og = document.createElement('optgroup'); og.label = kind === 'その他' ? '標準・その他' : kind === '実物' ? '実物の形（見本画像から）' : `${kind}（手続きで近似）`;
   for (const pt of PATTERNS.filter((x) => x.kind === kind)) { const o = document.createElement('option'); o.value = pt.id; o.textContent = pt.name; og.appendChild(o); }

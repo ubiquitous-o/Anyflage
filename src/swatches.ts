@@ -14,13 +14,15 @@ async function loadLabels(id: string, w: number, h: number): Promise<Uint8Array>
   return labels;
 }
 
-/** 見本がなければ何も足さない */
-export async function loadSwatches(): Promise<void> {
+/** 見本を読んで柄の一覧に足し、読んだ見本を返す。見本がなければ何も足さない */
+export async function loadSwatches(): Promise<Swatch[]> {
   let list: Omit<Swatch, 'labels'>[];
   try {
     const r = await fetch(`${import.meta.env.BASE_URL}swatches/index.json`);
-    if (!r.ok || !(r.headers.get('content-type') || '').includes('json')) return;
+    if (!r.ok || !(r.headers.get('content-type') || '').includes('json')) return [];
     list = await r.json();
-  } catch { return; }
-  for (const s of list) PATTERNS.push(swatchPattern({ ...s, labels: await loadLabels(s.id, s.w, s.h) }));
+  } catch { return []; }
+  const out: Swatch[] = [];
+  for (const s of list) { const sw: Swatch = { ...s, labels: await loadLabels(s.id, s.w, s.h) }; PATTERNS.push(swatchPattern(sw)); out.push(sw); }
+  return out; // 絵を描く Worker にも同じ見本を渡す
 }

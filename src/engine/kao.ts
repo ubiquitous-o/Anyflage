@@ -64,7 +64,13 @@ export const Kao = (function () {
   // 切り口は、峠の点からいちばん近い縁と、その反対側のいちばん近い縁を結ぶ直線。くびれを最短で横切る。
   // （山の境目をそのまま切り口にすると、境目が縁に沿って這い、細長い切れ端ができる）
   function splitNecks(ids: Int32Array<ArrayBuffer>, W: number, H: number, alpha: number, minPeak: number): { ids: Int32Array<ArrayBuffer>; count: number } {
-    var n = W * H, dt = depthOf(ids, W, H), i, k, maxd = 0;
+    var segs = neckSegments(ids, W, H, alpha, minPeak), wall = new Uint8Array(W * H), walls = 0;
+    for (var k = 0; k < segs.length; k++) walls += drawWall(wall, ids, W, H, segs[k][4], segs[k][0], segs[k][1], segs[k][2], segs[k][3]);
+    return cutByWalls(ids, wall, walls, W, H);
+  }
+  /** くびれの切り口の一覧 [始点x, 始点y, 終点x, 終点y, ブロブの番号] */
+  function neckSegments(ids: Int32Array, W: number, H: number, alpha: number, minPeak: number): number[][] {
+    var n = W * H, dt = depthOf(ids, W, H), i, k, maxd = 0, segs: number[][] = [];
     for (i = 0; i < n; i++) if (dt[i] > maxd) maxd = dt[i];
     // 深さの順に並べる（0.5刻みの桶）
     var levels = Math.floor(maxd * 2) + 2, cnt = new Int32Array(levels + 1), order = new Int32Array(n);
@@ -93,8 +99,8 @@ export const Kao = (function () {
       }
       if (best < 0) { parent[p] = p; peak[p] = d; } else parent[p] = best;
     }
-    if (!cut) { var nb = 0; for (i = 0; i < n; i++) if (ids[i] >= nb) nb = ids[i] + 1; return { ids: ids, count: nb }; }
-    var wall = new Uint8Array(n), walls = 0, kept: number[] = [];
+    if (!cut) return segs;
+    var kept: number[] = [];
     for (var si = 0; si < saddles.length; si++) {
       var sp = saddles[si], sx = sp % W, sy = (sp / W) | 0, sid = ids[sp], R = Math.ceil(dt[sp]) + 4, xx, yy, dx, dy, dd;
       // すでに切った所から、くびれの幅より近い峠は飛ばす。同じ太さの帯を輪切りにしない
@@ -117,11 +123,11 @@ export const Kao = (function () {
         if (xx < 0 || yy < 0 || xx >= W || yy >= H || ids[yy * W + xx] !== sid) { b2 = dd; ex2 = dx; ey2 = dy; }
       }
       if (b2 > 1e8) continue;
-      // 2つの縁を結ぶ線を壁にする
-      walls += drawWall(wall, ids, W, H, sid, sx + ex1, sy + ey1, sx + ex2, sy + ey2);
+      // 2つの縁を結ぶ線が切り口
+      segs.push([sx + ex1, sy + ey1, sx + ex2, sy + ey2, sid]);
       kept.push(sp);
     }
-    return cutByWalls(ids, wall, walls, W, H);
+    return segs;
   }
   /** (ax,ay)→(zx,zy) の線を壁にする。sid のブロブの上だけ。増えた壁の画素数を返す */
   function drawWall(wall: Uint8Array, ids: Int32Array, W: number, H: number, sid: number, ax: number, ay: number, zx: number, zy: number): number {
@@ -230,7 +236,8 @@ export const Kao = (function () {
     return cutByWalls(ids, wall, walls, W, H);
   }
 
-  function buildCamo(W: number, H: number, p: Pick<Params, 'seed' | 'size' | 'wobble' | 'layerAt' | 'neck' | 'notch' | 'noSplit' | 'split'>): Camo {
+  function buildCamo(W: number, H: number, p: Pick<Params, 'seed' | 'size' | 'wobble' | 'layerAt' | 'neck' | 'notch' | 'noSplit' | 'split' | 'cutRef'>): Camo {
+    if (p.cutRef && Math.max(W, H) > p.cutRef) return buildFromRef(W, H, p);
     var layerAt = p.layerAt, wavy = p.split === 'wavy';
     var n = W * H, M = Math.max(W, H), seed = p.seed | 0;
     var size = p.size, f = 1 / size, wob = p.wobble * size * 0.9;
@@ -273,6 +280,11 @@ export const Kao = (function () {
     if (p.notch) { // えぐれで切る
       res = splitNotches(ids, W, H, p.notch); C = res.count; ids = res.ids;
     }
+    return finishCamo(W, H, ids, C, layer);
+  }
+  /** ブロブ分けが済んだあとの仕上げ。ブロブごとの面積・外接矩形・層と、各画素の縁からの深さ */
+  function finishCamo(W: number, H: number, ids: Int32Array<ArrayBuffer>, C: number, layer: Int32Array): Camo {
+    var n = W * H, x, y, i, c, d;
     var comps: Comps = { dmax: new Float32Array(C), cx: new Float32Array(C), cy: new Float32Array(C), count: C, layer: new Uint8Array(C), area: new Int32Array(C),
       x0: new Int32Array(C).fill(W), y0: new Int32Array(C).fill(H), x1: new Int32Array(C).fill(-1), y1: new Int32Array(C).fill(-1) };
     for (y = 0, i = 0; y < H; y++) for (x = 0; x < W; x++, i++) {
@@ -300,6 +312,50 @@ export const Kao = (function () {
     }
     for (y = 0, i = 0; y < H; y++) for (x = 0; x < W; x++, i++) { c = ids[i]; if (dt[i] > comps.dmax[c]) { comps.dmax[c] = dt[i]; comps.cx[c] = x; comps.cy[c] = y; } }
     return { W: W, H: H, ids: ids, comps: comps, dt: dt, grids: {}, maps: {} };
+  }
+
+  /**
+   * 大きい絵の迷彩を、小さい絵（長辺 cutRef）のブロブ分けに合わせて作る。
+   * ブロブをどこで切るか（大きすぎるブロブ、くびれ、えぐれ）は、絵の大きさで少しずつ変わる。
+   * そのまま大きい絵で作ると、画面で見た絵と書き出した絵でブロブの数や形が違ってしまう。
+   * そこで、切る場所は小さい絵で決める。大きい絵では、色の境目だけを細かく作り直し、
+   * 各画素を「同じ色の、いちばん近い小さい絵のブロブ」に入れる。大きい絵でブロブを切る計算も省ける。
+   */
+  function buildFromRef(W: number, H: number, p: Pick<Params, 'seed' | 'size' | 'wobble' | 'layerAt' | 'neck' | 'notch' | 'noSplit' | 'split' | 'cutRef'>): Camo {
+    var M = Math.max(W, H), f = (p.cutRef as number) / M, cw = Math.max(1, Math.round(W * f)), ch = Math.max(1, Math.round(H * f));
+    var q: typeof p = { seed: p.seed, size: p.size, wobble: p.wobble, layerAt: p.layerAt, neck: p.neck, notch: p.notch, noSplit: p.noSplit, split: p.split };
+    var ref = buildCamo(cw, ch, q), rid = ref.ids, rl = ref.comps.layer, C = ref.comps.count;
+    var layerAt = p.layerAt, seed = p.seed | 0, size = p.size, fq = 1 / size, wob = p.wobble * size * 0.9;
+    var n = W * H, layer = new Int32Array(n), ids = new Int32Array(n), fx = cw / W, fy = ch / H;
+    var cand = [0, 0, 0, 0], wgt = [0, 0, 0, 0];
+    for (var y = 0, i = 0; y < H; y++) for (var x = 0; x < W; x++, i++) {
+      var nx = x / M, ny = y / M;
+      var wx = nx + wob * (vnoise(nx * fq * 2.1, ny * fq * 2.1, seed + 50) - 0.5), wy = ny + wob * (vnoise(nx * fq * 2.1 + 40, ny * fq * 2.1 + 40, seed + 51) - 0.5);
+      var L = 0;
+      if (layerAt) L = layerAt(nx, ny, wx, wy); else for (var k = 1; k < 4; k++) if (fbm(wx * fq / 1.45 + k * 31.7, wy * fq + k * 17.3, seed + k) > THR[k]) L = k;
+      // 小さい絵の、まわり4画素。同じ色のブロブだけを候補にして、近さの重みがいちばん大きいものを選ぶ。境目がなめらかな斜めになる
+      var rx = Math.min(cw - 1, Math.max(0, (x + 0.5) * fx - 0.5)), ry = Math.min(ch - 1, Math.max(0, (y + 0.5) * fy - 0.5));
+      var x0 = Math.floor(rx), y0 = Math.floor(ry), x1 = Math.min(cw - 1, x0 + 1), y1 = Math.min(ch - 1, y0 + 1), tx = rx - x0, ty = ry - y0, nc = 0, best = -1, bw = 0;
+      for (var j = 0; j < 4; j++) {
+        var b = rid[(j < 2 ? y0 : y1) * cw + (j % 2 ? x1 : x0)], w = (j % 2 ? tx : 1 - tx) * (j < 2 ? 1 - ty : ty) + 1e-6;
+        if (rl[b] !== L) continue;
+        for (var m = 0; m < nc && cand[m] !== b; m++);
+        if (m === nc) { cand[nc] = b; wgt[nc] = 0; nc++; }
+        wgt[m] += w;
+      }
+      for (j = 0; j < nc; j++) if (wgt[j] > bw) { bw = wgt[j]; best = cand[j]; }
+      if (best < 0) { // まわりに同じ色のブロブがない。少し広げて探す
+        var cxr = Math.round(rx), cyr = Math.round(ry), bd = 1e9;
+        for (var r = 1; r <= 3 && best < 0; r++) for (var dy = -r; dy <= r; dy++) for (var dx = -r; dx <= r; dx++) {
+          var xx = cxr + dx, yy = cyr + dy; if (xx < 0 || yy < 0 || xx >= cw || yy >= ch) continue;
+          var bb = rid[yy * cw + xx], dd = dx * dx + dy * dy;
+          if (rl[bb] === L && dd < bd) { bd = dd; best = bb; }
+        }
+      }
+      if (best < 0) { best = rid[Math.round(ry) * cw + Math.round(rx)]; L = rl[best]; } // 小さい絵には無い、点のようなかけら。まわりのブロブに合わせる
+      ids[i] = best; layer[i] = L;
+    }
+    return finishCamo(W, H, ids, C, layer);
   }
 
   function smooth(a: F32, r: number): F32 {
@@ -365,6 +421,7 @@ export const Kao = (function () {
     for (var c = 0; c < cm.count; c++) {
       var L = cm.layer[c], col = colors[L % colors.length], bx = cm.x0[c], by = cm.y0[c];
       var bw = cm.x1[c] - bx + 1, bh = cm.y1[c] - by + 1, x, y, i, lx, ly;
+      if (!cm.area[c]) continue; // 画素を1つも持たないブロブ
       if (clip && (cm.x1[c] < clip[0] || cm.y1[c] < clip[1] || bx > clip[2] || by > clip[3])) continue; // 描く範囲にかからないブロブは飛ばす
       if (!np || cm.area[c] < flatArea || (p.flatLayers && p.flatLayers.indexOf(L) >= 0)) { // 素材なし、または小さすぎるブロブは色だけ塗る
         for (y = by; y < by + bh; y++) for (x = bx, i = y * W + bx; x < bx + bw; x++, i++) if (ids[i] === c) {
@@ -809,10 +866,14 @@ export const Kao = (function () {
     var key = method, tag = mix + '|' + imp + (trim ? '|t' : ''), invs = ph.inv || (ph.inv = {}); if (invs[key] && invs[key].mix === tag) return invs[key];
     var g = sourceGrid(ph, 72, trim); setWeights(ph, g, method === 'harmonic' || method === 'contour' ? 0 : imp);
     var map = discMap(g, method, mix), gw = g.gw, gh = g.gh, N = 192, tx = new Float32Array(N * N), ty = new Float32Array(N * N), ok = new Uint8Array(N * N);
+    // 素材の隣どうしの升が、円の上で遠く離れることがある（手足や尻尾で凹んだ形）。そのあいだを1升ぶんの絵で埋めると、
+    // 輪郭線の黒が帯になって伸びる。trim のときは、升1つが円の上で占める大きさの1.8倍を超える三角は描かず、穴にする。
+    // 穴は下で、まわりからなめらかにつないで埋める
+    var triMax = trim ? Math.max(4, 1.8 * Math.sqrt(3.14159 * (N / 2) * (N / 2) / Math.max(1, g.n))) : N * 0.4;
     var tri = function (ax: number, ay: number, bx: number, by: number, cx: number, cy: number, asx: number, asy: number, bsx: number, bsy: number, csx: number, csy: number) {
       var minx = Math.max(0, Math.floor(Math.min(ax, bx, cx))), maxx = Math.min(N - 1, Math.ceil(Math.max(ax, bx, cx)));
       var miny = Math.max(0, Math.floor(Math.min(ay, by, cy))), maxy = Math.min(N - 1, Math.ceil(Math.max(ay, by, cy)));
-      if (maxx - minx > N * 0.4 || maxy - miny > N * 0.4) return;
+      if (maxx - minx > triMax || maxy - miny > triMax) return;
       var den = (by - cy) * (ax - cx) + (cx - bx) * (ay - cy); if (Math.abs(den) < 1e-9) return;
       for (var y = miny; y <= maxy; y++) for (var x = minx; x <= maxx; x++) {
         var w0 = ((by - cy) * (x - cx) + (cx - bx) * (y - cy)) / den, w1 = ((cy - ay) * (x - cx) + (ax - cx) * (y - cy)) / den, w2 = 1 - w0 - w1;
@@ -847,6 +908,15 @@ export const Kao = (function () {
       }
     }
     return (invs[key] = { N: N, tx: tx, ty: ty, empty: tt === 0, mix: tag });
+  }
+  /**
+   * 素材1枚ぶんの、方式ごとの準備（円へ写す表、弾性体の網）を先に済ませる。結果は素材の中に入る。
+   * 描くときにも同じものを作るが、先に別の場所で作っておけば、描くときは使うだけで済む。
+   */
+  function prepareSource(ph: Source, method: string, mix: number, imp: number, trim: boolean): void {
+    if (!ph.shape) return;
+    if (method === 'elastic') sourceMesh(ph);
+    else if (method !== 'radial' && method !== 'carve') sourceInv(ph, method, mix, imp, trim);
   }
   function paint(out: Pixels, o: number, pd: Pixels, si: number, col: RGB, tint: number) {
     var m = 0.45 + (0.299 * pd[si] + 0.587 * pd[si + 1] + 0.114 * pd[si + 2]) / 255 * 1.1;
@@ -1064,5 +1134,5 @@ export const Kao = (function () {
       paint(out, i * 4, d, s2, col, o.tint);
     }
   }
-  return { buildCamo: buildCamo, renderCamo: renderCamo, carve: carve, assignSources: assignSources, hash2: hash2, vnoise: vnoise, fbm: fbm, THR: THR };
+  return { buildCamo: buildCamo, renderCamo: renderCamo, carve: carve, assignSources: assignSources, prepareSource: prepareSource, hash2: hash2, vnoise: vnoise, fbm: fbm, THR: THR };
 })();

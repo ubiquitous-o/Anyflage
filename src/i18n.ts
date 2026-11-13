@@ -26,7 +26,7 @@ const EN: Record<string, string> = {
   // 2 迷彩
   '迷彩を選ぶ': 'Choose camouflage', '柄': 'Pattern', 'ブロブの大きさ': 'Blob size', 'ブロブの大きさを引いて変える': 'Drag to change the blob size', '右へ引くと大きく、左へ引くと小さく。離すと真ん中へ戻る。何度でも続けて引ける': 'Drag right for larger, left for smaller. It springs back to the middle when released, so you can keep dragging.',
   'ブロブを小さく': 'Smaller blobs', '小さく（÷1.25）': 'Smaller (÷1.25)', 'ブロブを大きく': 'Larger blobs', '大きく（×1.25）': 'Larger (×1.25)',
-  '配色': 'Colours', '柄の本来の色': "The pattern's own colours", 'ウッドランド': 'Woodland', 'デザート': 'Desert', 'アーバン': 'Urban', 'ネイビー': 'Navy', 'ポップ': 'Pop',
+  '配色': 'Colours', '柄の本来の色': "The pattern's own colours", 'ウッドランド': 'Woodland', 'デザート': 'Desert', 'アーバン': 'Urban', 'ネイビー': 'Navy', 'ポップ': 'Pop', '白だけ': 'All white', 'グレーだけ': 'All grey', '黒だけ': 'All black',
   '作りかけの配色（下で作る）': 'Draft colours (edit below)', '自分の配色': 'My colours', '自分の配色を作る': 'Make your own colours', '配色に名前を付ける': 'Name the colour set', '空なら 配色 1、配色 2…': 'Blank becomes 配色 1, 配色 2…',
   '配色に足す': 'Add to colours', '選んだ配色を消す': 'Delete the selected colours', '＋ 色を足す': '+ Add a colour',
   'このブラウザには保存できなかった。開き直すと消える。URL には色が残る。': 'Could not save in this browser. It will be gone when you reopen the page. The colours remain in the URL.',

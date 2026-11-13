@@ -21,6 +21,8 @@ const $ = <T extends HTMLElement = HTMLInputElement>(id: string): T => document.
 const num = (id: string): number => +$(id).value / 100;
 
 const PALETTES: Record<string, string[]> = {
+  // 1色だけの配色。迷彩の色の差がなくなり、押し込んだ画像だけでブロブが見える
+  white: ['#FFFFFF', '#FFFFFF', '#FFFFFF', '#FFFFFF'], gray: ['#808080', '#808080', '#808080', '#808080'], black: ['#000000', '#000000', '#000000', '#000000'],
   woodland: ['#C2B280', '#4B5D2A', '#5A4028', '#1C1F18'], desert: ['#D9C7A3', '#B79A6B', '#8A6A45', '#5B4A3A'],
   urban: ['#D5D6D2', '#9A9C98', '#5C5F60', '#232526'], navy: ['#9FB2C4', '#4F6D8C', '#243B5A', '#0F1826'],
   pop: ['#FFD23F', '#EE4266', '#3BCEAC', '#540D6E'],

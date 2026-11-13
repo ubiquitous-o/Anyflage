@@ -92,6 +92,21 @@ function stepSize(f: number): void {
   fixSize(); syncUi(); void draw();
 }
 
+// 引いて変えるスライダー。つまみはいつも真ん中にいる。右へ引くと大きく、左へ引くと小さく、端まで引いて4倍か 1/4。
+// 離すと、つまみだけ真ん中へ戻る。値はそのまま。もう一度引けば、そこからさらに変わる。だから上限も下限もない。
+// ブロブの大きさは掛け算で効く値なので、「いまの値の何倍にするか」で動かす。
+let jogBase: number | null = null;
+function jogValue(): number { const v = (jogBase ?? sizeGood) * Math.pow(4, +$('size-jog').value / 100); return +v.toPrecision(v >= 100 ? 3 : 2); }
+$('size-jog').addEventListener('input', () => { // 引いているあいだは、数字だけ変える
+  if (jogBase === null) jogBase = sizeGood;
+  $('size').value = String(jogValue());
+});
+$('size-jog').addEventListener('change', () => { // 離した。値を決めて描き直し、つまみを真ん中へ戻す
+  if (jogBase !== null) $('size').value = String(jogValue());
+  jogBase = null; $('size-jog').value = '0';
+  fixSize(); syncUi(); void draw();
+});
+
 // ---- 自分の配色 ----
 // 色を1つずつ選んで作り、名前を付けて「配色」に足す。足した配色はこのブラウザに残す（localStorage）。
 // URL には色そのものを書く（palette=custom&colors=c2b280-4b5d2a-…）ので、URL を渡せば同じ色で開ける。
@@ -543,10 +558,10 @@ window.addEventListener('keydown', (ev) => {
 // スライダーは、動かしているあいだは数字だけ変え、離したときに描き直す。動かすたびに描くと、重い描画が何度も走る。
 // 選択欄とチェックは、変えたらすぐ描き直す。名前の入力、ファイル選び、画素数の入力では描き直さない
 // 色選びと配色の名前（#pal-box の中）は、表示だけ合わせる。描き直しは自分のリスナーでやる
-const QUIET = ['ownname', 'own', 'ownkind', 'ow', 'oh', 'size', 'showsrc', 'lang'];
+const QUIET = ['ownname', 'own', 'ownkind', 'ow', 'oh', 'size', 'size-jog', 'showsrc', 'lang'];
 const isSlider = (t: EventTarget | null): boolean => t instanceof HTMLInputElement && t.type === 'range';
 $('sheet').addEventListener('input', (ev) => { if (QUIET.includes((ev.target as HTMLElement).id)) return; syncUi(); if ((ev.target as HTMLElement).closest('#pal-box')) return; if (!isSlider(ev.target)) void draw(); });
-$('sheet').addEventListener('change', (ev) => { if (isSlider(ev.target)) void draw(); });
+$('sheet').addEventListener('change', (ev) => { if (isSlider(ev.target) && !QUIET.includes((ev.target as HTMLElement).id)) void draw(); });
 for (const id of ['ow', 'oh']) $(id).addEventListener('change', () => { $(id).value = String(clampPx($(id).value)); syncUi(); void draw(); }); // 数字は打ち終わってから描き直す
 $('size').addEventListener('change', () => { fixSize(); syncUi(); void draw(); });
 $('size-up').addEventListener('click', () => stepSize(1.25));

@@ -296,7 +296,7 @@ function fixSize(p: Pattern): Pattern {
 
 export const PATTERNS: Pattern[] = [
   { id: 'blob', name: 'Anyflage 標準', kind: 'その他', flatBelow: 0, colors: ['#C2B280', '#4B5D2A', '#5A4028', '#1C1F18'],
-    note: '試作からの柄。値ノイズを3層、しきい値で重ねる。どの実物もまねていない。',
+    note: 'Anyflage の標準の柄。値ノイズを3層、しきい値で重ねる。どの実物もまねていない。',
     make: () => { throw new Error('標準の柄は kao.ts の中で作る'); } },
   { id: 'tiles', name: '角丸の正方形タイル', kind: 'その他', flatBelow: 0, flatLayers: [0], noSplit: true, colors: ['#14170F', '#C2B280', '#4B5D2A', '#5A4028'],
     note: '迷彩ではない。角の丸い正方形を升目に並べる。押し込み方を素直な形で比べるための見本。すき間には素材を入れない。「ブロブの大きさ」がタイル1枚の大きさ。',

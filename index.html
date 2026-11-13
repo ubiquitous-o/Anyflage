@@ -92,6 +92,11 @@
       <select id="pattern" aria-label="柄"></select>
       <p id="pattern-note" class="note"></p>
       <div class="row"><label for="size">ブロブの大きさ</label>
+        <div class="jog">
+          <span aria-hidden="true">÷4</span>
+          <input type="range" id="size-jog" min="-100" max="100" step="5" value="0" aria-label="ブロブの大きさを引いて変える" title="右へ引くと大きく、左へ引くと小さく。離すと真ん中へ戻る。何度でも続けて引ける">
+          <span aria-hidden="true">×4</span>
+        </div>
         <div class="stepper">
           <button type="button" id="size-down" aria-label="ブロブを小さく" title="小さく（÷1.25）">−</button>
           <input type="number" id="size" step="any" value="17" inputmode="decimal">
@@ -124,7 +129,7 @@
         <summary>ブロブの形をくわしく決める</summary>
         <div class="row"><label for="wobble">輪郭のうねり <output id="o-wobble"></output></label><input type="range" id="wobble" min="0" max="100" value="55"></div>
         <div class="row"><label for="split">大きすぎるブロブ</label>
-          <select id="split"><option value="wavy">うねった線で切る</option><option value="cell">直線で切る（試作と同じ）</option><option value="none">切らない</option></select>
+          <select id="split"><option value="wavy">うねった線で切る</option><option value="cell">直線で切る</option><option value="none">切らない</option></select>
         </div>
         <div class="row"><label for="neck">くびれでブロブを切る <output id="o-neck"></output></label><input type="range" id="neck" min="0" max="95" step="5" value="50"></div>
         <div class="row"><label for="notch">えぐれでブロブを切る <output id="o-notch"></output></label><input type="range" id="notch" min="0" max="100" step="5" value="50"></div>

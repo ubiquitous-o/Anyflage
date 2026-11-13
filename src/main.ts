@@ -88,9 +88,9 @@ let sizeGood = 8.9;
 /** 入力欄の値を確かめて、使える値に直す。直したときは理由を出す */
 function fixSize(): void {
   const el = $('size'), v = +el.value, ok = el.value.trim() !== '' && Number.isFinite(v) && v > 0;
-  let s = ok ? v : sizeGood, note = ok ? '' : `0 より大きい数字を入れて。${sizeGood}% のままにした。`;
-  if (s < SIZE_MIN) { s = SIZE_MIN; note = `${SIZE_MIN}% より小さくしても、ブロブが1画素より小さいまま変わらない。${SIZE_MIN}% で止めた。`; }
-  if (s > SIZE_MAX) { s = SIZE_MAX; note = `${SIZE_MAX}% より大きくしても、画面ぜんぶが1つのブロブのまま変わらない。${SIZE_MAX}% で止めた。`; }
+  let s = ok ? v : sizeGood, note = ok ? '' : `0 より大きい数値を入力してください（${sizeGood}% のまま）。`;
+  if (s < SIZE_MIN) { s = SIZE_MIN; note = `${SIZE_MIN}% 未満は結果が変わりません（${SIZE_MIN}% に制限）。`; }
+  if (s > SIZE_MAX) { s = SIZE_MAX; note = `${SIZE_MAX}% を超えても結果が変わりません（${SIZE_MAX}% に制限）。`; }
   sizeGood = s; el.value = String(s);
   $('size-note').textContent = note; $('size-note').hidden = !note; $('size-note').classList.toggle('warn', !!note);
 }
@@ -138,7 +138,7 @@ function loadPalettes(): void {
 }
 function storePalettes(): void {
   try { localStorage.setItem(PAL_KEY, JSON.stringify(ownPalettes)); palMsg = ''; }
-  catch { palMsg = 'このブラウザには保存できなかった。開き直すと消える。URL には色が残る。'; }
+  catch { palMsg = 'ブラウザに保存できませんでした。再読み込みで消えます（URL には色が残ります）。'; }
 }
 const ownPalette = (v: string): OwnPalette | undefined => v.startsWith('my:') ? ownPalettes.find((p) => p.name === v.slice(3)) : undefined;
 /** 選んだ配色の色。柄の本来の色のときは null */
@@ -153,7 +153,7 @@ function drawPaletteOptions(): void {
   const sel = $<HTMLSelectElement>('palette');
   document.getElementById('pal-mine')?.remove();
   if (!ownPalettes.length) return;
-  const og = document.createElement('optgroup'); og.id = 'pal-mine'; og.label = '自分の配色';
+  const og = document.createElement('optgroup'); og.id = 'pal-mine'; og.label = 'カスタム配色';
   for (const p of ownPalettes) { const o = document.createElement('option'); o.value = `my:${p.name}`; o.textContent = p.name; og.appendChild(o); }
   sel.insertBefore(og, sel.querySelector('option[value="custom"]'));
 }
@@ -166,11 +166,11 @@ function drawPalEditor(): void {
     const c = document.createElement('input'); c.type = 'color'; c.value = hex; c.setAttribute('aria-label', `${i + 1}色目`);
     c.addEventListener('input', () => { draft[i] = c.value; }); // 選んでいるあいだは覚えるだけ。決めたときに描き直す
     c.addEventListener('change', () => { draft[i] = c.value; draftChanged(); });
-    const x = document.createElement('button'); x.type = 'button'; x.textContent = '×'; x.setAttribute('aria-label', `${i + 1}色目を消す`); x.disabled = draft.length <= 1;
+    const x = document.createElement('button'); x.type = 'button'; x.textContent = '×'; x.setAttribute('aria-label', `${i + 1}色目を削除`); x.disabled = draft.length <= 1;
     x.addEventListener('click', () => { draft.splice(i, 1); drawPalEditor(); draftChanged(); });
     w.append(c, x); box.appendChild(w);
   });
-  const add = document.createElement('button'); add.type = 'button'; add.id = 'pal-add'; add.textContent = '＋ 色を足す'; add.disabled = draft.length >= PAL_MAX;
+  const add = document.createElement('button'); add.type = 'button'; add.id = 'pal-add'; add.textContent = '＋ 色を追加'; add.disabled = draft.length >= PAL_MAX;
   add.addEventListener('click', () => { draft.push(draft[draft.length - 1]); drawPalEditor(); draftChanged(); });
   box.appendChild(add);
 }
@@ -288,7 +288,7 @@ function bestCols(n: number): number {
 /** 素材の準備を、複数の Worker に分けて先に済ませる。進み具合を画面に出す */
 async function warm(mats: string[], method: string): Promise<void> {
   const p = params();
-  await engine.prepare(mats, matOptions(), method, p.mix === undefined ? 0.5 : p.mix, p.imp || 0, !!p.trim, (done, total) => setBusy(`素材を準備している… ${done}/${total}`));
+  await engine.prepare(mats, matOptions(), method, p.mix === undefined ? 0.5 : p.mix, p.imp || 0, !!p.trim, (done, total) => setBusy(`画像を準備中… ${done}/${total}`));
 }
 /**
  * 画面用の絵の長辺。枠に全体を収めたときの画素数に合わせる。引き伸ばしてぼやけないように。
@@ -310,7 +310,7 @@ async function produce(longEdge: number, reuse: boolean, stale: () => boolean = 
     return renderSheet(Math.round(longEdge / 2.5), bestCols(TILES[cmp].length), TILES[cmp].map((m) => ({ label: LABELS[m], p: { ...p, method: m } })), src, stale);
   }
   await warm(src, p.method || 'radial');
-  if (reuse) setBusy('描いている…'); else setBusy(`書き出している…（${dims(longEdge).join('×')} px。数秒かかる）`);
+  if (reuse) setBusy('描画中…'); else setBusy(`書き出し中…（${dims(longEdge).join('×')} px）`);
   if (cmp === 'orig') { // 左に押し込んだ後、右に元の素材
     const [W, H] = dims(Math.round(longEdge * 2 / 3)), c = document.createElement('canvas'); c.width = W * 2 + 8; c.height = H;
     const g = c.getContext('2d')!; g.fillStyle = '#14170F'; g.fillRect(0, 0, c.width, H);
@@ -334,7 +334,7 @@ async function draw(): Promise<void> {
 }
 async function drawOnce(): Promise<void> {
   const t0 = performance.now();
-  setBusy('描いている…');
+  setBusy('描画中…');
   try {
     const cmp = $('compare').value;
     const c = await produce(cmp ? 1080 : $('repeat').checked && $('repeatgrid').checked ? PREVIEW : previewLong(), true, () => wanted);
@@ -348,8 +348,8 @@ async function drawOnce(): Promise<void> {
     if (resized) layoutView(); // 絵の大きさが変わったら、置き方を合わせ直す
     drawBackdrop(); // 柄や色が変わっていれば、枠の背景も描き直す
     const n = chosen().length;
-    $('s-info').textContent = showSources ? `素材 ${n}枚` : `シード ${seed}・ブロブ ${lastBlobs}・素材 ${n}枚・${Math.round(performance.now() - t0)}ms`;
-    setStatus(all.length ? (n ? '' : '種類を1つ選んで。') : '素材がまだない。「自分の画像を足す」から入れて。');
+    $('s-info').textContent = showSources ? `画像 ${n}枚` : `シード ${seed}・ブロブ ${lastBlobs}個・画像 ${n}枚・描画 ${((performance.now() - t0) / 1000).toFixed(1)}秒`;
+    setStatus(all.length ? (n ? '' : '画像セットを選択してください。') : '画像がありません。「画像を追加」から追加してください。');
   } catch (e) {
     setStatus(e instanceof Error ? e.message : String(e));
   } finally { // 途中でやめたときも、作業中の表示を必ず片づける
@@ -378,7 +378,7 @@ function drawChips(): void {
   }
 }
 /** 枚数の表示。上限いっぱいなら「全部」と出す */
-function syncPer(): void { const per = $('per'); $('o-per').textContent = +per.value >= +per.max && +per.max > 1 ? `全部（${per.value}枚）` : `${per.value}枚`; }
+function syncPer(): void { const per = $('per'); $('o-per').textContent = +per.value >= +per.max && +per.max > 1 ? `すべて（${per.value}枚）` : `${per.value}枚`; }
 function syncUi(): void {
   for (const id of SLIDERS) if (id === 'per') syncPer(); else $(`o-${id}`).textContent = id === 'softlim' ? `${$(id).value}升` : `${$(id).value}%`;
   const m = $('method').value as Method, cv = $('compare').value, cmp = cv === '10';
@@ -389,9 +389,9 @@ function syncUi(): void {
   $('own-size').hidden = $('ratio').value !== 'custom';
   const pv = $('palette').value, pn = $('pal-name').value.trim(), K = patternById($('pattern').value).colors.length;
   $('pal-del').disabled = !ownPalette(pv);
-  $('pal-save').textContent = pn && ownPalettes.some((q) => q.name === pn) ? `「${pn}」を上書きする` : '配色に足す';
-  $('pal-note').textContent = `いま${draft.length}色。この柄は${K}色を使う。数が違うときは、色のあいだを補って配る。${palMsg}`;
-  const [ew, eh] = dims(exportLong()); $('out-size').textContent = `書き出しの大きさ：${ew}×${eh} px`;
+  $('pal-save').textContent = pn && ownPalettes.some((q) => q.name === pn) ? `「${pn}」を上書き` : '配色を保存';
+  $('pal-note').textContent = `現在 ${draft.length}色／この柄は${K}色。数が違う場合は、中間色を補って割り当てます。${palMsg}`;
+  const [ew, eh] = dims(exportLong()); $('out-size').textContent = `書き出しサイズ：${ew}×${eh} px`;
   $('squeeze').disabled = !cmp && !(m === 'radial' || m === 'elastic');
   $('fit').disabled = !cmp && m !== 'radial';
   $('mix').disabled = !cmp && !HYBRID.includes(m);
@@ -399,8 +399,8 @@ function syncUi(): void {
   $('o-mamt').textContent = `${$('mamt').value}%`; $('o-mfine').textContent = `${$('mfine').value}升`; $('o-msec').textContent = `${$('msec').value}秒`;
   $('motion-box').hidden = !$('motion').checked;
   $('o-mamt2').textContent = `${$('mamt2').value}%`; $('o-mlava').textContent = `${$('mlava').value}%`;
-  $('mamt2').disabled = !$('mkind2').value; $('mlava').disabled = $('mgrow').disabled = !$('lava').checked; $('o-mgrow').textContent = `毎秒 ブロブ${$('mgrow').value}個ぶん`; $('lava-note').hidden = !$('lava').checked;
-  const [vw, vh] = dims(videoLong()); $('video-note').textContent = `書き出す動画：${vw & ~1}×${vh & ~1} px、${VIDEO_FPS}fps、${$('msec').value}秒。くり返し再生すると、なめらかにつながる。`;
+  $('mamt2').disabled = !$('mkind2').value; $('mlava').disabled = $('mgrow').disabled = !$('lava').checked; $('o-mgrow').textContent = `ブロブ ${$('mgrow').value}個分／秒`; $('lava-note').hidden = !$('lava').checked;
+  const [vw, vh] = dims(videoLong()); $('video-note').textContent = `動画：${vw & ~1}×${vh & ~1} px、${VIDEO_FPS}fps、${$('msec').value}秒（ループ再生対応）`;
   syncMotion();
 }
 
@@ -528,12 +528,12 @@ const lavaCount = (): number => Math.max(12, Math.min(LAVA_MAX, Math.round(+$('m
 let lavaN = 0;
 let lavaFrames: (HTMLCanvasElement | undefined)[] = [], lavaGen = 0, lavaShown = -1;
 const lavaOn = (): boolean => $('motion').checked && $('lava').checked && plain() && !$('repeat').checked;
-/** 侵食の早さ。絵が1コマに広がる距離（ブロブの大きさを 1 として）。1周 n コマのとき。スライダーは「1秒にブロブ何個ぶん」 */
+/** 侵食の早さ。絵が1コマに広がる距離（ブロブの大きさを 1 として）。1周 n コマのとき。スライダーは「1秒にブロブ何個分／秒」 */
 const lavaGrow = (n: number): number => +$('mgrow').value * +$('msec').value / n;
 /** 本番の前に、本当に描いて捨てるコマ数。絵を読む位置のならしを、0 コマ目の前に効かせておくため。0.4 秒ぶん */
 const lavaLead = (n: number): number => Math.min(n - 1, Math.ceil(0.4 * n / +$('msec').value) + 1);
 /**
- * ラバランプの1周ぶん（n コマ）を、順に描く。描けたコマは emit に渡す（0 から n-1 の順）。
+ * ラバランプの1周ぶん（n）を、順に描く。描けたコマは emit に渡す（0 から n-1 の順）。
  *
  * どのコマの絵も、その前のコマの続きでできている（どの顔がどこにいるか、絵がどこまで広がったか）。
  * 顔の割り当ては、1周たどっても元に戻らない。そのまま描くと、1周の終わりと 0 コマ目で顔が違い、ループがつながらない。
@@ -549,8 +549,8 @@ async function lavaRun(W: number, H: number, mats: string[], p: Params, n: numbe
     const r = await engine.render(job);
     return new ImageData(r.data, r.W, r.H);
   };
-  for (let i = 0; i < n; i++) { if (stale()) return; await step(i, 'f', i === 0); if (i % 5 === 0) note(`下ごしらえ 1/2（${i}/${n} コマ）`, i); }
-  for (let k = 0; k < n; k++) { if (stale()) return; await step((n - k) % n, 'b', k === 0); if (k % 5 === 0) note(`下ごしらえ 2/2（${k}/${n} コマ）`, n + k); } // 0、n-1、n-2、…、1 の順
+  for (let i = 0; i < n; i++) { if (stale()) return; await step(i, 'f', i === 0); if (i % 5 === 0) note(`準備 1/2（${i}/${n}）`, i); }
+  for (let k = 0; k < n; k++) { if (stale()) return; await step((n - k) % n, 'b', k === 0); if (k % 5 === 0) note(`準備 2/2（${k}/${n}）`, n + k); } // 0、n-1、n-2、…、1 の順
   for (let k = 0; k < lead; k++) { if (stale()) return; await step(n - lead + k, 'draw', k === 0); } // 0 コマ目の手前を描いて捨てる。絵の広がりと、読む位置のならしを効かせておく
   for (let i = 0; i < n; i++) { if (stale()) return; await emit(i, await step(i, 'draw', false)); }
 }
@@ -570,13 +570,13 @@ async function startLava(): Promise<void> {
     lavaN = N;
     const stale = (): boolean => gen !== lavaGen || exporting;
     const total = 3 * N + lavaLead(N); // 下ごしらえ2周、捨てるコマ、本番
-    lavaNote('ラバランプを描いている…');
+    lavaNote('ラバランプを生成中…');
     await lavaRun(W, H, src, p, N, (i, img) => {
       if (stale()) return;
       const c = document.createElement('canvas'); c.width = W; c.height = H; c.getContext('2d')!.putImageData(img, 0, 0);
       lavaFrames[i] = c;
-      if (i + 1 < N) lavaNote(`ラバランプを描いている…（${i + 1}/${N} コマ）`, (total - N + i + 1) / total); else lavaNote('');
-    }, (t, done) => { if (!stale()) lavaNote(`ラバランプを描いている…（${t}）`, done / total); }, stale);
+      if (i + 1 < N) lavaNote(`ラバランプを生成中…（${i + 1}/${N}）`, (total - N + i + 1) / total); else lavaNote('');
+    }, (t, done) => { if (!stale()) lavaNote(`ラバランプを生成中…（${t}）`, done / total); }, stale);
   } catch (e) { if (gen === lavaGen) { lavaNote(''); setStatus(e instanceof Error ? e.message : String(e)); } }
 }
 function motionFrame(now: number): void {
@@ -633,19 +633,19 @@ $('save-video').addEventListener('click', async () => {
   const save = await pickSave(`anyflage-${seed}-${stamp()}.mp4`, 'MP4 動画', 'video/mp4', '.mp4');
   if (!save) { exporting = false; if (wanted) void draw(); return; }
   const btn = $('save-video'), secs = +$('msec').value, N = Math.round(secs * VIDEO_FPS);
-  btn.disabled = true; $('save').disabled = true; btn.textContent = '書き出している…';
-  setStatus(''); setBusy('動画にする絵を描いている…');
+  btn.disabled = true; $('save').disabled = true; btn.textContent = '書き出し中…';
+  setStatus(''); setBusy('動画用の画像を生成中…');
   await paintNow();
   let m: Motion | null = null;
-  const done = (msg: string): void => { m?.dispose(); exporting = false; btn.disabled = false; $('save').disabled = false; btn.textContent = 'MP4を保存'; setBusy(null); setStatus(msg); if (wanted) void draw(); else void startLava(); };
+  const done = (msg: string): void => { m?.dispose(); exporting = false; btn.disabled = false; $('save').disabled = false; btn.textContent = 'MP4 を保存'; setBusy(null); setStatus(msg); if (wanted) void draw(); else void startLava(); };
   try {
-    if (typeof VideoEncoder === 'undefined') throw new Error('このブラウザでは動画を書き出せない（WebCodecs が使えない）。');
+    if (typeof VideoEncoder === 'undefined') throw new Error('このブラウザは動画の書き出しに対応していません（WebCodecs 非対応）。');
     const mb = await import('mediabunny');
     const still = await produce(videoLong(), false);
     // H.264 は偶数の画素数しか受けない。奇数なら1画素だけ縮める
     const W = still.width & ~1, H = still.height & ~1, cv = document.createElement('canvas');
     m = new Motion(cv);
-    if (Math.max(W, H) > m.maxSize || !(await mb.canEncodeVideo('avc', { width: W, height: H }))) throw new Error(`この大きさ（${W}×${H} px）は、このブラウザでは MP4 にできない。小さい大きさを選んで。`);
+    if (Math.max(W, H) > m.maxSize || !(await mb.canEncodeVideo('avc', { width: W, height: H }))) throw new Error(`サイズ（${W}×${H} px）は、このブラウザでは MP4 にできません。小さいサイズを選択してください。`);
     m.setPicture(still, W, H); m.setPhase(plain() ? lastPhase : null);
     const target = new mb.BufferTarget(), out = new mb.Output({ format: new mb.Mp4OutputFormat(), target });
     const src = new mb.CanvasSource(cv, { codec: 'avc', bitrate: mb.QUALITY_HIGH });
@@ -656,15 +656,15 @@ $('save-video').addEventListener('click', async () => {
     const mm = m, add = async (i: number): Promise<void> => { // i = N は i = 0 と同じ絵。入れない。最後のコマの次が最初のコマにつながる
       mm.draw(Math.PI * 2 * i / N, o);
       await src.add(i / VIDEO_FPS, 1 / VIDEO_FPS);
-      if (lava || i % 5 === 0) { setBusy(`動画にしている…（${i}/${N} コマ）`); await new Promise((r) => setTimeout(r, 0)); }
+      if (lava || i % 5 === 0) { setBusy(`動画を作成中…（${i}/${N}）`); await new Promise((r) => setTimeout(r, 0)); }
     };
-    if (lava) await lavaRun(still.width, still.height, mats, p, N, async (i, img) => { fc.getContext('2d')!.putImageData(img, 0, 0); mm.setPicture(fc, W, H); await add(i); }, (t) => setBusy(`動画にしている…（${t}）`)); // ラバランプは、コマごとに絵を作り直す
+    if (lava) await lavaRun(still.width, still.height, mats, p, N, async (i, img) => { fc.getContext('2d')!.putImageData(img, 0, 0); mm.setPicture(fc, W, H); await add(i); }, (t) => setBusy(`動画を作成中…（${t}）`)); // ラバランプは、コマごとに絵を作り直す
     else for (let i = 0; i < N; i++) await add(i);
-    setBusy('ファイルにしている…');
+    setBusy('ファイルを作成中…');
     await out.finalize();
-    if (!target.buffer) throw new Error('動画を作れなかった。');
+    if (!target.buffer) throw new Error('動画を作成できませんでした。');
     await save(new Blob([target.buffer], { type: 'video/mp4' }));
-    done(`保存した。${W}×${H} px・${secs}秒`);
+    done(`保存しました：${W}×${H} px・${secs}秒`);
   } catch (e) { done(e instanceof Error ? e.message : String(e)); }
 });
 
@@ -786,21 +786,21 @@ $('pal-del').addEventListener('click', () => {
 });
 $('reseed').addEventListener('click', () => { seed = Math.floor(Math.random() * 90000) + 10000; void draw(); });
 $('shuffle').addEventListener('click', () => { shuf = Math.floor(Math.random() * 90000) + 10000; void draw(); });
-// ---- 自分の画像を足す：選ぶ → 背景除去のしかた → 名前 → 追加 ----
+// ---- 画像を追加：選ぶ → 背景除去のしかた → 名前 → 追加 ----
 /** 選んだだけで、まだ足していない画像 */
 let ownFiles: File[] = [];
 function syncOwn(): void {
   const n = ownFiles.length;
-  $('own-picked').textContent = n ? `${n}枚選んだ：${ownFiles.slice(0, 3).map((f) => f.name).join('、')}${n > 3 ? ' ほか' : ''}` : 'まだ選んでいない。まとめて入れたい画像は、一度に複数選ぶ。';
+  $('own-picked').textContent = n ? `${n}枚を選択：${ownFiles.slice(0, 3).map((f) => f.name).join('、')}${n > 3 ? ' ほか' : ''}` : '未選択。1セットにする画像をまとめて選択してください。';
   $('ownadd').disabled = !n || ownBusy;
-  $('ownadd').textContent = ownBusy ? '追加している…' : n ? `${n}枚を追加する` : '追加する';
+  $('ownadd').textContent = ownBusy ? '追加中…' : n ? `${n}枚を追加` : '追加';
 }
 $('own').addEventListener('change', () => { ownFiles = [...($('own').files || [])]; syncOwn(); });
 $('ownadd').addEventListener('click', async () => {
   const files = ownFiles;
   if (!files.length || ownBusy) return;
   ownBusy = true; syncOwn();
-  // 1回の追加が1つのセット。名前は入力欄から。空なら 001、002… の連番。同じ名前がすでにあれば番号を足して別のセットにする
+  // 1回の追加が1つのセット。名前は入力欄から。空欄の場合：001、002… の連番。同じ名前がすでにあれば番号を足して別のセットにする
   const nameBox = $('ownname'), want = nameBox.value.trim();
   let name = want, k = 1;
   if (!name) { do name = String(k++).padStart(3, '0'); while (groups.includes(name)); }
@@ -808,9 +808,9 @@ $('ownadd').addEventListener('click', async () => {
   let added = 0, failed = '';
   const kind = $('ownkind').value as CutKind;
   for (const f of files) {
-    setBusy(kind === 'asis' ? `画像を読んでいる… ${added + 1}/${files.length}` : `背景を除いている… ${added + 1}/${files.length}${added ? '' : '（最初の1枚はモデルを読むので時間がかかる）'}`);
+    setBusy(kind === 'asis' ? `画像を読み込み中… ${added + 1}/${files.length}` : `背景を除去中… ${added + 1}/${files.length}${added ? '' : '（初回はモデルの読み込みに時間がかかります）'}`);
     await paintNow(); // 文言を先に画面へ出す
-    try { all.push(await addOwnImage(f, name, kind)); added++; } catch (e) { failed = `読めなかった: ${f.name}（${e instanceof Error ? e.message : e}）`; console.error(e); }
+    try { all.push(await addOwnImage(f, name, kind)); added++; } catch (e) { failed = `読み込めませんでした: ${f.name}（${e instanceof Error ? e.message : e}）`; console.error(e); }
   }
   ownBusy = false; setBusy(null);
   if (failed) setStatus(failed);
@@ -824,8 +824,8 @@ $('ownadd').addEventListener('click', async () => {
 let forgetArmed = 0;
 $('ownforget').addEventListener('click', async () => { // 押し間違いで消えないよう、2回押して消す
   const btn = $('ownforget');
-  if (Date.now() - forgetArmed > 4000) { forgetArmed = Date.now(); btn.textContent = '本当に消す（もう一度押す）'; btn.classList.add('danger'); setTimeout(() => { if (Date.now() - forgetArmed >= 4000) btn.textContent = '足したセットを全部消す'; btn.classList.remove('danger'); }, 4100); return; }
-  forgetArmed = 0; btn.textContent = '足したセットを全部消す'; btn.classList.remove('danger');
+  if (Date.now() - forgetArmed > 4000) { forgetArmed = Date.now(); btn.textContent = '削除を確定（もう一度押す）'; btn.classList.add('danger'); setTimeout(() => { if (Date.now() - forgetArmed >= 4000) btn.textContent = '追加したセットをすべて削除'; btn.classList.remove('danger'); }, 4100); return; }
+  forgetArmed = 0; btn.textContent = '追加したセットをすべて削除'; btn.classList.remove('danger');
   await forgetOwnImages();
   const gone = new Set(all.filter((s) => s.set === 'own').map((s) => s.group));
   all = all.filter((s) => s.set !== 'own'); groups = groups.filter((gname) => !gone.has(gname) || all.some((s) => s.group === gname));
@@ -839,23 +839,23 @@ $('save').addEventListener('click', async () => {
   const save = await pickSave(`anyflage-${$('compare').value ? 'compare-' : ''}${seed}-${stamp()}.png`, 'PNG 画像', 'image/png', '.png');
   if (!save) { exporting = false; if (wanted) void draw(); return; }
   const btn = $('save'), [ew, eh] = dims(exportLong());
-  btn.disabled = true; btn.textContent = '書き出している…';
-  setStatus(''); setBusy(`書き出している…（${ew}×${eh} px。数秒かかる）`);
+  btn.disabled = true; btn.textContent = '書き出し中…';
+  setStatus(''); setBusy(`書き出し中…（${ew}×${eh} px）`);
   await paintNow();
-  const done = (msg: string): void => { exporting = false; btn.disabled = false; btn.textContent = 'PNGを保存'; setBusy(null); setStatus(msg); if (wanted) void draw(); }; // 書き出しのあいだに設定が変わっていたら、ここで描き直す
+  const done = (msg: string): void => { exporting = false; btn.disabled = false; btn.textContent = 'PNG を保存'; setBusy(null); setStatus(msg); if (wanted) void draw(); }; // 書き出しのあいだに設定が変わっていたら、ここで描き直す
   try {
     const c = await produce(exportLong(), false);
-    setBusy('ファイルにしている…'); await paintNow();
+    setBusy('ファイルを作成中…'); await paintNow();
     const blob = await new Promise<Blob | null>((r) => c.toBlob(r, 'image/png'));
-    if (!blob) { done('画像を作れなかった。'); return; }
+    if (!blob) { done('画像を作成できませんでした。'); return; }
     await save(blob);
-    done(`保存した。${c.width}×${c.height} px`);
+    done(`保存しました：${c.width}×${c.height} px`);
   } catch (e) { done(e instanceof Error ? e.message : String(e)); }
 });
 
 engine.sendSwatches(await loadSwatches());
 for (const kind of ['その他', '実物', '軍用', '狩猟'] as const) {
-  const og = document.createElement('optgroup'); og.label = kind === 'その他' ? '標準・その他' : kind === '実物' ? '実物の形（見本画像から）' : `${kind}（手続きで近似）`;
+  const og = document.createElement('optgroup'); og.label = kind === 'その他' ? '標準・その他' : kind === '実物' ? '実物（見本画像から）' : `${kind}（近似）`;
   for (const pt of PATTERNS.filter((x) => x.kind === kind)) { const o = document.createElement('option'); o.value = pt.id; o.textContent = pt.name; og.appendChild(o); }
   $('pattern').appendChild(og);
 }

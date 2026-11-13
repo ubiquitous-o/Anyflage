@@ -40,7 +40,7 @@ function loadPerson(): Promise<Segmenter> {
 /** 層の番号：0 背景、1 髪、2 体の肌、3 顔の肌、4 服、5 小物 */
 async function personMask(canvas: HTMLCanvasElement, part: 'skin' | 'face' | 'person'): Promise<Float32Array> {
   const seg = await loadPerson(), res = seg.segment(canvas), ms = res.confidenceMasks;
-  if (!ms || ms.length < 4) { res.close(); throw new Error('人の切り抜きに失敗した'); }
+  if (!ms || ms.length < 4) { res.close(); throw new Error('人物の切り抜きに失敗しました'); }
   const mw = ms[0].width, mh = ms[0].height, bg = ms[0].getAsFloat32Array(), hair = ms[1].getAsFloat32Array(), face = ms[3].getAsFloat32Array(), m = new Float32Array(mw * mh);
   // skin：顔の肌だけ。face：顔の肌と髪。person：背景以外の全部
   for (let i = 0; i < m.length; i++) m[i] = part === 'skin' ? face[i] : part === 'face' ? hair[i] + face[i] : 1 - bg[i];

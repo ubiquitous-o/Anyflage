@@ -46,7 +46,7 @@ export async function addOwnImage(file: File, group: string, kind: CutKind): Pro
     return ownSample(id, group, file.name, raster.w, raster.h);
   } finally { URL.revokeObjectURL(url); }
 }
-const ownSample = (id: string, group: string, label: string, w: number, h: number): Sample => ({ id, set: 'own', group, label, image: '', mask: null, bbox: [0, 0, w, h], source: '自分で足した画像' });
+const ownSample = (id: string, group: string, label: string, w: number, h: number): Sample => ({ id, set: 'own', group, label, image: '', mask: null, bbox: [0, 0, w, h], source: '追加した画像' });
 /** 切り抜いたあとの画像を PNG にして、ブラウザに覚える */
 async function remember(id: string, group: string, label: string, r: Raster): Promise<void> {
   const c = document.createElement('canvas'); c.width = r.w; c.height = r.h;
@@ -89,7 +89,7 @@ function loadImage(src: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const im = new Image();
     im.onload = () => resolve(im);
-    im.onerror = () => reject(new Error(`読めなかった: ${src}`));
+    im.onerror = () => reject(new Error(`読み込めませんでした: ${src}`));
     im.src = src;
   });
 }

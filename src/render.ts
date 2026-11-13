@@ -237,12 +237,14 @@ function renderOriginals(job: Job, p: Params, src: Picker[]): Result {
 function lavaParams(p: Params, lv: Lava, W: number, H: number): Params {
   const m = Math.min(1, Math.max(0, lv.amount)), c = Math.cos(lv.theta), s = Math.sin(lv.theta), seed = p.seed | 0;
   if (!p.layerAt) {
-    const f = 1 / p.size, norm = Math.hypot(1 - m, m), T = Kao.THR; // まぜると山が低くなるので、高さを戻す
+    // 0 コマ目（θ = 0）では、もとのノイズそのもの。止まった絵と同じ形から動き出して、1周で戻る。
+    // 動くノイズの重みは (1 − cos θ) / 2 と sin θ / 2。どちらも θ = 0 でゼロになる
+    const f = 1 / p.size, u = m * (1 - c) / 2, v2 = m * s / 2, norm = Math.hypot(1 - u, u, v2), T = Kao.THR; // まぜると山が低くなるので、高さを戻す
     return { ...p, layerAt: (_nx, _ny, wx, wy) => {
       let L = 0;
       for (let k = 1; k < 4; k++) {
         const x = wx * f / 1.45 + k * 31.7, y = wy * f + k * 17.3;
-        const v = 0.5 + ((1 - m) * (Kao.fbm(x, y, seed + k) - 0.5) + m * ((Kao.fbm(x, y, seed + k + 1000) - 0.5) * c + (Kao.fbm(x, y, seed + k + 2000) - 0.5) * s)) / norm;
+        const v = 0.5 + ((1 - u) * (Kao.fbm(x, y, seed + k) - 0.5) + u * (Kao.fbm(x, y, seed + k + 1000) - 0.5) + v2 * (Kao.fbm(x, y, seed + k + 2000) - 0.5)) / norm;
         if (v > T[k]) L = k;
       }
       return L;
@@ -285,9 +287,9 @@ function lavaMap(p: Params, W: number, H: number, m: number, c: number, s: numbe
     }
     lavaBase = { key, A, B, ids: bc.ids, dt: bc.dt, dmax: cm.dmax, ha, hb, ok };
   }
-  const { A, B, ids, dt, dmax, ha, hb, ok } = lavaBase, out = new Uint8Array(A), th = (1 - m) * 0.2, w = 0.07, lim = new Float32Array(dmax.length);
+  const { A, B, ids, dt, dmax, ha, hb, ok } = lavaBase, out = new Uint8Array(A), lo = 0.02 + (1 - m) * 0.2, w = 0.07, lim = new Float32Array(dmax.length);
   for (let k = 0; k < lim.length; k++) { // lim：これより深い所だけ出す。出きったら 0、出ていなければ無限大
-    let r = ok[k] ? (ha[k] * c + hb[k] * s - (th - w)) / (2 * w) : 0;
+    let r = ok[k] ? (ha[k] * (1 - c) + hb[k] * s - lo) / (2 * w) : 0; // 0 コマ目（θ = 0）では、どのブロブも出ていない。止まった絵と同じ形
     r = r <= 0 ? 0 : r >= 1 ? 1 : r * r * (3 - 2 * r);
     lim[k] = r <= 0 ? Infinity : (dmax[k] + 0.5) * (1 - r);
   }
@@ -304,6 +306,11 @@ function lavaMap(p: Params, W: number, H: number, m: number, c: number, s: numbe
  * 同じコマは、何度作っても同じブロブ分け・同じ番号になる。だから番号で引ける。
  */
 let lavaKeys: { F: (Int32Array | undefined)[]; B: (Int32Array | undefined)[] } = { F: [], B: [] };
+/**
+ * 0 コマ目を、止まった絵と同じにするためのもの。0 コマ目のブロブの番号（＝そのブロブの鍵）ごとに、
+ * 止まった絵で入っていた素材の番号（pick）と、絵の向きを合わせるために足す回転（turn）。
+ */
+let lavaStill: { pick: Map<number, number>; turn: Map<number, number> } = { pick: new Map(), turn: new Map() };
 let lavaPrev: {
   W: number; H: number;
   /** 画素ごとの、そこに絵を出していたブロブの鍵。色だけ塗った所は -1 */
@@ -357,6 +364,21 @@ function renderLava(job: Job, p0: Params, src: Picker[]): Result {
       let best = -1, bn = 0;
       for (const [k, v] of m) if (v > bn && !used.has(k) && prev.layerOf.get(k) === bm.layer[c]) { best = k; bn = v; }
       if (best >= 0) { keys[c] = best; used.add(best); }
+    }
+  }
+  // 0 コマ目の鍵は、ブロブの番号そのもの。止まった絵は番号で素材・向き・回転を決めるので、同じ顔が同じ向きで入る
+  if (!prev && !given && lv.index === 0) for (let c = 0; c < bm.count; c++) { keys[c] = c; used.add(c); }
+  if (lv.pass === 'f' && lv.index === 0) {
+    lavaStill = { pick: new Map(), turn: new Map() };
+    const pk = Kao.assignSources(base, src.length, p); // 止まった絵と同じ決め方（隣どうしで同じ素材を避ける、も含む）
+    for (let c = 0; c < bm.count; c++) if (pk[c] >= 0) lavaStill.pick.set(c, pk[c]);
+    // 絵の向き。動画では向きをブロブ全体でならして決める（steady）。止まった絵はならさない。
+    // 0 コマ目で、ならして消えるぶんの回転を測っておき、その鍵にはいつも同じだけ回し戻す。0 コマ目は止まった絵と同じ向きになり、そこからなめらかに変わる
+    const method = p.method || 'radial';
+    if (src.length && !['radial', 'elastic', 'carve'].includes(method)) {
+      base.steady = true; base.ros = new Float32Array(bm.count);
+      const flatArea = (p.flatBelow || 0) * n, mix = p.mix === undefined ? 0.5 : p.mix;
+      for (let c = 0; c < bm.count; c++) if (pk[c] >= 0 && bm.area[c] >= flatArea) { Kao.blobMap(base, c, method, mix); lavaStill.turn.set(c, base.ros[c]); }
     }
   }
   for (const c of order) if (keys[c] < 0) {
@@ -421,12 +443,16 @@ function renderLava(job: Job, p0: Params, src: Picker[]): Result {
   for (let c = 0; c < cmA.count; c++) {
     let a = (cmA.x1[c] - cmA.x0[c] + 1) / (cmA.y1[c] - cmA.y0[c] + 1);
     const a0 = prev ? prev.aspectOf.get(camKeys[c]) : undefined;
-    if (a0 && Math.abs(Math.log(a / a0)) < 0.5) a = a0;
+    if (a0 && lv.index !== 0 && Math.abs(Math.log(a / a0)) < 0.5) a = a0; // 0 コマ目は、止まった絵と同じ版を使う
     aspect[c] = a; if (!(cam.flat && cam.flat[c])) aspectOf.set(camKeys[c], a);
   }
   if (lv.pass === 'f') lavaKeys.F[lv.index] = keys; else if (lv.pass === 'b') lavaKeys.B[lv.index] = keys;
   if (dry) { lavaPrev = { W, H, owner, org, ageOf, layerOf, aspectOf, uv: null }; return { data: new Uint8ClampedArray(4), W: 1, H: 1, blobs: bm.count }; } // 絵は返さない。1画素だけ
   cam.keys = camKeys; cam.steady = true; cam.aspect = aspect;
+  cam.maps = {}; cam.ros = undefined; // 0 コマ目で向きを測ったときの写像は使わない（回し戻す前のもの）
+  const picks = new Int32Array(cmA.count).fill(-1), turn = new Float32Array(cmA.count);
+  for (let c = 0; c < cmA.count; c++) { const pk = lavaStill.pick.get(camKeys[c]); if (pk !== undefined) picks[c] = pk; turn[c] = lavaStill.turn.get(camKeys[c]) || 0; }
+  cam.picks = picks; cam.turn = turn;
   // 絵を読む位置を、前のコマからなめらかにつなぐ。前のコマも同じ鍵の絵だった画素だけ
   const ok = new Uint8Array(n), pu = prev && prev.uv ? prev.uv.u : new Float32Array(0), pv = prev && prev.uv ? prev.uv.v : new Float32Array(0);
   // 広がっている最中のブロブは、ならさない。ならすと、前からある所は古い位置を引きずり、いま届いた所は新しい位置で描かれる。

@@ -122,12 +122,13 @@ button:disabled { opacity: 0.45; cursor: default; }
 /* 背景の迷彩を画面全体に敷いたので、枠は透かし、設定の箱は地を付けて文字を読めるようにする */
 .viewport { background: transparent; }
 fieldset { background: rgb(20 23 15 / .9); }
-.head { display: flex; align-items: center; justify-content: space-between; gap: 8px; background: rgb(20 23 15 / .9); border: 1px solid var(--line); border-radius: 6px; padding: 8px 12px; }
+/* タイトル、GitHub、言語。プレビューの左上に、中身の幅で置く */
+.head { flex: none; align-self: flex-start; display: flex; align-items: center; gap: 12px; background: rgb(20 23 15 / .9); border: 1px solid var(--line); border-radius: 6px; padding: 8px 12px; }
 .head select { width: auto; padding: 4px 6px; font-size: 12px; }
 .viewbar { background: rgb(20 23 15 / .9); border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; }
 /* 取り返しのつかない操作の、確認のあいだ */
 button.danger { background: #b3261e; border-color: #e0563b; color: #fff; font-weight: 700; }
-.head h1 { margin-right: auto; }
+.head h1 { margin-right: 4px; }
 .gh { display: inline-flex; align-items: center; gap: 5px; color: var(--dim); font-size: 12px; text-decoration: none; padding: 4px 6px; border-radius: 4px; }
 .gh:hover, .gh:focus-visible { color: var(--ink); background: var(--panel); }
 

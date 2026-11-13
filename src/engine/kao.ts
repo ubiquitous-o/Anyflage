@@ -446,7 +446,7 @@ export const Kao = (function () {
       }
       var kc = keys ? keys[c] : c; // 素材・向き・回転を決める鍵。ふつうはブロブの番号
       var r1 = hash2(kc, 11, seed), r2 = hash2(kc, 23, seed), r3 = hash2(kc, 37, seed), r4 = hash2(kc, 41, seed);
-      var ph0 = photos[apart ? apart[c] : p.assign === 'layer' ? L % np : Math.floor(r1 * np) % np];
+      var ph0 = photos[camo.picks && camo.picks[c] >= 0 && camo.picks[c] < np ? camo.picks[c] : apart ? apart[c] : p.assign === 'layer' ? L % np : Math.floor(r1 * np) % np];
       var ph: Source = 'pick' in ph0 ? ph0.pick(camo.aspect ? camo.aspect[c] : bw / bh) : ph0; // content-aware sources hand back a version carved for this blob's proportions
       if (ph.shape && p.method && p.method !== 'radial') {
         var opt: FitOptions = { method: p.method, ang: (r2 - 0.5) * 2 * Math.PI * p.rot, flip: r3 < 0.5 ? -1 : 1, spin: (r3 - 0.5) * 2, dist: dist, tint: tint, squeeze: sq, mix: p.mix === undefined ? 0.5 : p.mix, imp: p.imp || 0, smooth: !!p.smooth, trim: !!p.trim };
@@ -855,7 +855,10 @@ export const Kao = (function () {
       if (camo.steady) { // 円の上の向きと、ブロブの中での実際の方角との ずれを、ブロブ全体でならして消す
         var gw = g.gw, nn = gw * g.gh, sn = 0, cs = 0, i;
         for (i = 0; i < nn; i++) if (g.ins[i]) { var px = i % gw - g.ci, py = ((i / gw) | 0) - g.cj; sn += px * mv[i] - py * mu[i]; cs += px * mu[i] + py * mv[i]; }
-        var ro = Math.atan2(sn, cs), cr = Math.cos(ro), sr = Math.sin(ro), nu = new Float32Array(nn), nv = new Float32Array(nn);
+        var ro = Math.atan2(sn, cs);
+        if (camo.ros) camo.ros[c] = ro;
+        if (camo.turn) ro -= camo.turn[c]; // 決まったぶんだけ回し戻す
+        var cr = Math.cos(ro), sr = Math.sin(ro), nu = new Float32Array(nn), nv = new Float32Array(nn);
         for (i = 0; i < nn; i++) { nu[i] = mu[i] * cr + mv[i] * sr; nv[i] = mv[i] * cr - mu[i] * sr; }
         mu = nu; mv = nv;
       }
@@ -1163,5 +1166,5 @@ export const Kao = (function () {
       paint(out, i * 4, d, s2, col, o.tint);
     }
   }
-  return { buildCamo: buildCamo, renderCamo: renderCamo, carve: carve, assignSources: assignSources, prepareSource: prepareSource, hash2: hash2, vnoise: vnoise, fbm: fbm, THR: THR, fromRef: fromRef, fromKeys: fromKeys };
+  return { buildCamo: buildCamo, renderCamo: renderCamo, carve: carve, assignSources: assignSources, prepareSource: prepareSource, hash2: hash2, vnoise: vnoise, fbm: fbm, THR: THR, fromRef: fromRef, fromKeys: fromKeys, blobMap: blobMap };
 })();

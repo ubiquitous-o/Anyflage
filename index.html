@@ -11,35 +11,9 @@
 <canvas id="backdrop" width="8" height="8" aria-hidden="true"></canvas>
 <main>
   <section class="stage">
-    <div id="viewport" class="viewport" title="ホイールで拡大縮小、ドラッグで移動、ダブルクリックで全体と等倍を切り替え">
-      <canvas id="view" width="720" height="720"></canvas>
-      <canvas id="motion-view" width="8" height="8" hidden aria-hidden="true"></canvas>
-      <div class="before-tag" aria-hidden="true">前の絵</div>
-      <div id="lava-tag" class="work-tag" hidden aria-hidden="true"><span class="spin" aria-hidden="true"></span><span id="lava-tag-text"></span><span class="bar"><span id="lava-tag-bar"></span></span></div>
-      <div id="busy" class="busy" hidden aria-live="polite"><span class="spin" aria-hidden="true"></span><span id="busy-text"></span></div>
-    </div>
-    <div class="viewbar">
-      <div class="zoom" role="group" aria-label="プレビューの拡大縮小">
-        <button type="button" id="zoom-out" aria-label="縮小">−</button>
-        <output id="zoom-val">100%</output>
-        <button type="button" id="zoom-in" aria-label="拡大">＋</button>
-        <button type="button" id="zoom-fit">全体</button>
-        <button type="button" id="zoom-100">等倍</button>
-      </div>
-      <div class="zoom" role="group" aria-label="編集の履歴">
-        <button type="button" id="undo" title="元に戻す（⌘Z／Ctrl+Z）" disabled>↶ 戻す</button>
-        <button type="button" id="redo" title="やり直す（⇧⌘Z／Ctrl+Y）" disabled>↷ やり直す</button>
-      </div>
-      <div class="zoom">
-        <button type="button" id="before" title="押しているあいだ、描き直す前の絵を出す（キーボードは B）" disabled>前の絵（B を押しているあいだ）</button>
-      </div>
-      <p class="stats"><span id="s-info"></span> <span id="status" role="status"></span></p>
-    </div>
-  </section>
-  <form id="sheet" class="sheet" onsubmit="return false">
     <div class="head">
       <h1>Anyflage</h1>
-      <a class="gh" href="https://github.com/ubiquitous-o/Anyflage" target="_blank" rel="noopener" title="GitHub でソースを見る">
+      <a class="gh" href="https://github.com/ubiquitous-o/Anyflage" target="_blank" rel="noopener" title="GitHub でソースを表示">
         <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg>
         <span>GitHub</span>
       </a>
@@ -48,55 +22,81 @@
         <option value="en">English</option>
       </select>
     </div>
+    <div id="viewport" class="viewport" title="ホイール：拡大縮小／ドラッグ：移動／ダブルクリック：全体表示と 100% の切り替え">
+      <canvas id="view" width="720" height="720"></canvas>
+      <canvas id="motion-view" width="8" height="8" hidden aria-hidden="true"></canvas>
+      <div class="before-tag" aria-hidden="true">変更前</div>
+      <div id="lava-tag" class="work-tag" hidden aria-hidden="true"><span class="spin" aria-hidden="true"></span><span id="lava-tag-text"></span><span class="bar"><span id="lava-tag-bar"></span></span></div>
+      <div id="busy" class="busy" hidden aria-live="polite"><span class="spin" aria-hidden="true"></span><span id="busy-text"></span></div>
+    </div>
+    <div class="viewbar">
+      <div class="zoom" role="group" aria-label="プレビューの拡大縮小">
+        <button type="button" id="zoom-out" aria-label="縮小" title="縮小">−</button>
+        <output id="zoom-val">100%</output>
+        <button type="button" id="zoom-in" aria-label="拡大" title="拡大">＋</button>
+        <button type="button" id="zoom-fit" title="全体を枠内に表示">全体表示</button>
+        <button type="button" id="zoom-100" title="等倍で表示">100%</button>
+      </div>
+      <div class="zoom" role="group" aria-label="編集の履歴">
+        <button type="button" id="undo" title="元に戻す（⌘Z／Ctrl+Z）" disabled>↶ 元に戻す</button>
+        <button type="button" id="redo" title="やり直す（⇧⌘Z／Ctrl+Y）" disabled>↷ やり直す</button>
+      </div>
+      <div class="zoom">
+        <button type="button" id="before" title="押している間、変更前を表示（B キー）" disabled>変更前を表示（B）</button>
+      </div>
+      <p class="stats"><span id="s-info"></span> <span id="status" role="status"></span></p>
+    </div>
+  </section>
+  <form id="sheet" class="sheet" onsubmit="return false">
 
     <fieldset class="stage-box">
-      <legend><span class="num">1</span>画像セットを選ぶ</legend>
+      <legend><span class="num">1</span>画像セット</legend>
       <div id="groups" class="chips"></div>
-      <p id="empty" class="note" hidden>画像セットがまだない。下の「自分の画像を足す」から入れると、迷彩のブロブに押し込める。画像はこのブラウザの中だけで使う。どこにも送らない。</p>
-      <div class="row"><label for="per">使う画像の枚数 <output id="o-per"></output></label><input type="range" id="per" min="1" max="9999" value="40"></div>
+      <p id="empty" class="note" hidden>画像セットがありません。「画像を追加」から追加してください。画像はブラウザ内でのみ使用され、送信されません。</p>
+      <div class="row"><label for="per">使用枚数 <output id="o-per"></output></label><input type="range" id="per" min="1" max="9999" value="40"></div>
       <div class="pair">
         <button type="button" id="shuffle">シャッフル</button>
-        <label class="switch"><input type="checkbox" id="showsrc" role="switch"><span class="knob" aria-hidden="true"></span>切り抜きを見る</label>
+        <label class="switch"><input type="checkbox" id="showsrc" role="switch"><span class="knob" aria-hidden="true"></span>切り抜き一覧を表示</label>
       </div>
       <details id="own-box" class="more">
-        <summary>自分の画像を足す</summary>
+        <summary>画像を追加</summary>
         <ol class="steps">
           <li>
-            <label for="own">画像を選ぶ</label>
+            <label for="own">画像を選択</label>
             <input type="file" id="own" accept="image/*" multiple>
-            <p id="own-picked" class="note">まだ選んでいない。まとめて入れたい画像は、一度に複数選ぶ。</p>
+            <p id="own-picked" class="note">未選択。1セットにする画像をまとめて選択してください。</p>
           </li>
           <li>
-            <label for="ownkind">背景除去のしかたを選ぶ</label>
+            <label for="ownkind">背景の除去方法</label>
             <select id="ownkind">
-              <option value="asis">しない（切り抜き済みの画像）</option>
-              <option value="skin">人の顔だけ残す（髪なし）</option>
-              <option value="face">人の顔と髪を残す</option>
-              <option value="person">人の全身を残す</option>
-              <option value="object">もの・キャラを残す</option>
+              <option value="asis">除去しない（切り抜き済み）</option>
+              <option value="skin">顔のみ（髪を除く）</option>
+              <option value="face">顔と髪</option>
+              <option value="person">人物全体</option>
+              <option value="object">物・キャラクター</option>
             </select>
           </li>
           <li>
-            <label for="ownname">セットに名前を付ける</label>
-            <input type="text" id="ownname" placeholder="空なら 001、002…" maxlength="20" autocomplete="off">
+            <label for="ownname">セット名</label>
+            <input type="text" id="ownname" placeholder="空欄の場合：001、002…" maxlength="20" autocomplete="off">
           </li>
           <li>
-            <button type="button" id="ownadd" class="primary" disabled>追加する</button>
+            <button type="button" id="ownadd" class="primary" disabled>追加</button>
           </li>
         </ol>
-        <p class="note">追加するたびに、新しいセットになる。背景除去はこのブラウザの中で計算する。画像はどこにも送らない。足したセットはこのブラウザが覚えていて、閉じても次に開いたとき残っている。</p>
-        <button type="button" id="ownforget">足したセットを全部消す</button>
+        <p class="note">追加ごとに新しいセットになります。背景の除去はブラウザ内で行われ、画像は送信されません。追加したセットはブラウザに保存されます。</p>
+        <button type="button" id="ownforget">追加したセットをすべて削除</button>
       </details>
     </fieldset>
 
     <fieldset class="stage-box">
-      <legend><span class="num">2</span>迷彩を選ぶ</legend>
+      <legend><span class="num">2</span>迷彩柄</legend>
       <select id="pattern" aria-label="柄"></select>
       <p id="pattern-note" class="note"></p>
       <div class="row"><label for="size">ブロブの大きさ</label>
         <div class="jog">
           <span aria-hidden="true">÷4</span>
-          <input type="range" id="size-jog" min="-100" max="100" step="5" value="0" aria-label="ブロブの大きさを引いて変える" title="右へ引くと大きく、左へ引くと小さく。離すと真ん中へ戻る。何度でも続けて引ける">
+          <input type="range" id="size-jog" min="-100" max="100" step="5" value="0" aria-label="ブロブの大きさを調整" title="右：拡大／左：縮小。離すと中央に戻ります">
           <span aria-hidden="true">×4</span>
         </div>
         <div class="stepper">
@@ -113,37 +113,37 @@
           <option value="woodland">ウッドランド</option><option value="desert">デザート</option>
           <option value="urban">アーバン</option><option value="navy">ネイビー</option><option value="pop">ポップ</option>
           <option value="white">白だけ</option><option value="gray">グレーだけ</option><option value="black">黒だけ</option>
-          <option value="custom">作りかけの配色（下で作る）</option>
+          <option value="custom">編集中の配色</option>
         </select>
       </div>
       <details id="pal-box" class="more">
-        <summary>自分の配色を作る</summary>
+        <summary>配色を作成</summary>
         <div id="pal-colors" class="swatches"></div>
         <p id="pal-note" class="note"></p>
-        <div class="row"><label for="pal-name">配色に名前を付ける</label><input type="text" id="pal-name" placeholder="空なら 配色 1、配色 2…" maxlength="20" autocomplete="off"></div>
+        <div class="row"><label for="pal-name">配色名</label><input type="text" id="pal-name" placeholder="空欄の場合：配色 1、配色 2…" maxlength="20" autocomplete="off"></div>
         <div class="pair">
-          <button type="button" id="pal-save">配色に足す</button>
-          <button type="button" id="pal-del" disabled>選んだ配色を消す</button>
+          <button type="button" id="pal-save">配色を保存</button>
+          <button type="button" id="pal-del" disabled>選択中の配色を削除</button>
         </div>
       </details>
       <div class="row"><label for="tint">迷彩色の強さ <output id="o-tint"></output></label><input type="range" id="tint" min="0" max="100" value="80"></div>
-      <button type="button" id="reseed">形を作り直す</button>
+      <button type="button" id="reseed">ブロブを再生成</button>
       <details class="more">
-        <summary>ブロブの形をくわしく決める</summary>
+        <summary>ブロブの詳細設定</summary>
         <div class="row"><label for="wobble">輪郭のうねり <output id="o-wobble"></output></label><input type="range" id="wobble" min="0" max="100" value="19"></div>
-        <div class="row"><label for="split">大きすぎるブロブ</label>
-          <select id="split"><option value="wavy">うねった線で切る</option><option value="cell">直線で切る</option><option value="none">切らない</option></select>
+        <div class="row"><label for="split">大きいブロブの分割</label>
+          <select id="split"><option value="wavy">曲線で分割</option><option value="cell">直線で分割</option><option value="none">分割しない</option></select>
         </div>
-        <div class="row"><label for="neck">くびれでブロブを切る <output id="o-neck"></output></label><input type="range" id="neck" min="0" max="95" step="5" value="85"></div>
-        <div class="row"><label for="notch">えぐれでブロブを切る <output id="o-notch"></output></label><input type="range" id="notch" min="0" max="100" step="5" value="30"></div>
-        <div class="row"><label for="flat">小さいブロブは塗るだけ <output id="o-flat"></output></label><input type="range" id="flat" min="0" max="300" step="10" value="0"></div>
-        <label class="check"><input type="checkbox" id="soft" checked> ブロブの縁をなじませる（画素の段々を消す）</label>
-        <label class="check"><input type="checkbox" id="edges"> ブロブの境目を線で見る</label>
+        <div class="row"><label for="neck">くびれで分割 <output id="o-neck"></output></label><input type="range" id="neck" min="0" max="95" step="5" value="85"></div>
+        <div class="row"><label for="notch">えぐれで分割 <output id="o-notch"></output></label><input type="range" id="notch" min="0" max="100" step="5" value="30"></div>
+        <div class="row"><label for="flat">小さいブロブは色のみ <output id="o-flat"></output></label><input type="range" id="flat" min="0" max="300" step="10" value="0"></div>
+        <label class="check"><input type="checkbox" id="soft" checked> 縁をなめらかにする</label>
+        <label class="check"><input type="checkbox" id="edges"> 境界線を表示</label>
       </details>
     </fieldset>
 
     <fieldset class="stage-box">
-      <legend><span class="num">3</span>押し込み方を調整する</legend>
+      <legend><span class="num">3</span>押し込みの調整</legend>
       <div class="row"><label for="method">はめ方</label>
         <select id="method">
           <option value="radial">放射（重心から線を伸ばす）</option>
@@ -158,63 +158,63 @@
           <option value="carve">形にカービング（背景を出さない）</option>
         </select>
       </div>
-      <div class="row"><label for="carve">シームカービング（歪ませて縮める） <output id="o-carve"></output></label><input type="range" id="carve" min="0" max="90" step="10" value="60"></div>
-      <div class="row"><label for="assign">どのブロブに何を入れるか</label>
-        <select id="assign"><option value="random">ブロブごとにランダム</option><option value="apart" selected>隣どうしで同じ素材を避ける</option><option value="layer">色ごとに1種類</option></select>
+      <div class="row"><label for="carve">シームカービング <output id="o-carve"></output></label><input type="range" id="carve" min="0" max="90" step="10" value="60"></div>
+      <div class="row"><label for="assign">画像の割り当て</label>
+        <select id="assign"><option value="random">ランダム</option><option value="apart" selected>隣接で重複を避ける</option><option value="layer">色ごとに1画像</option></select>
       </div>
-      <div class="row"><label for="compare">並べて比べる</label>
+      <div class="row"><label for="compare">比較表示</label>
         <select id="compare">
-          <option value="">比べない</option>
-          <option value="orig">元の画像と比べる（左：押し込み後／右：元）</option>
-          <option value="10">はめ方を比べる（10方式を並べる）</option>
-          <option value="patterns">迷彩を比べる（全部の柄を並べる）</option>
+          <option value="">なし</option>
+          <option value="orig">元画像と比較（左：適用後／右：元）</option>
+          <option value="10">はめ方を比較（10方式）</option>
+          <option value="patterns">迷彩柄を比較（全種）</option>
         </select>
       </div>
       <details class="more">
-        <summary>はめ方をくわしく決める</summary>
-        <div class="row"><label for="mix">面積寄り <output id="o-mix"></output></label><input type="range" id="mix" min="0" max="100" step="5" value="65"></div>
+        <summary>はめ方の詳細設定</summary>
+        <div class="row"><label for="mix">面積均等の割合 <output id="o-mix"></output></label><input type="range" id="mix" min="0" max="100" step="5" value="65"></div>
         <div class="row"><label for="squeeze">締めつけ <output id="o-squeeze"></output></label><input type="range" id="squeeze" min="0" max="100" value="33"></div>
-        <div class="row"><label for="fit">形に押し込む <output id="o-fit"></output></label><input type="range" id="fit" min="0" max="100" value="100"></div>
-        <div class="row"><label for="dist">ゆらぎ <output id="o-dist"></output></label><input type="range" id="dist" min="0" max="100" value="0"></div>
+        <div class="row"><label for="fit">形への追従 <output id="o-fit"></output></label><input type="range" id="fit" min="0" max="100" value="100"></div>
+        <div class="row"><label for="dist">ゆがみ <output id="o-dist"></output></label><input type="range" id="dist" min="0" max="100" value="0"></div>
         <div class="row"><label for="rot">回転のばらつき <output id="o-rot"></output></label><input type="range" id="rot" min="0" max="100" value="17"></div>
-        <div class="row"><label for="imp">細部を大きく <output id="o-imp"></output></label><input type="range" id="imp" min="0" max="100" step="10" value="0"></div>
+        <div class="row"><label for="imp">細部の強調 <output id="o-imp"></output></label><input type="range" id="imp" min="0" max="100" step="10" value="0"></div>
       </details>
       <details class="more">
-        <summary>縮め方をくわしく決める</summary>
-        <div class="row"><label for="protect">肌色を保護 <output id="o-protect"></output></label><input type="range" id="protect" min="0" max="100" step="10" value="80"></div>
-        <label class="check"><input type="checkbox" id="fitblob"> ブロブの縦横に合わせて詰める</label>
-        <label class="check"><input type="checkbox" id="smooth"> なめらかに読む（画素の角を出さない）</label>
-        <label class="check"><input type="checkbox" id="soften" checked> カービングの段差をならす（階段を出さない）</label>
-        <div class="row"><label for="softlim">ならす飛びの上限 <output id="o-softlim"></output></label><input type="range" id="softlim" min="2" max="80" step="2" value="14"></div>
-        <label class="check"><input type="checkbox" id="trim" checked> 素材の細い所を落とす（端の筋を減らす）</label>
+        <summary>縮小の詳細設定</summary>
+        <div class="row"><label for="protect">肌色の保護 <output id="o-protect"></output></label><input type="range" id="protect" min="0" max="100" step="10" value="80"></div>
+        <label class="check"><input type="checkbox" id="fitblob"> ブロブの縦横比に合わせる</label>
+        <label class="check"><input type="checkbox" id="smooth"> なめらかに補間</label>
+        <label class="check"><input type="checkbox" id="soften" checked> カービングの段差をならす</label>
+        <div class="row"><label for="softlim">ならす範囲の上限 <output id="o-softlim"></output></label><input type="range" id="softlim" min="2" max="80" step="2" value="14"></div>
+        <label class="check"><input type="checkbox" id="trim" checked> 細い部分を省く</label>
       </details>
     </fieldset>
 
     <fieldset class="stage-box">
-      <legend><span class="num">4</span>出力する</legend>
-      <div class="row"><label for="ratio">大きさと比率</label>
+      <legend><span class="num">4</span>出力</legend>
+      <div class="row"><label for="ratio">サイズと比率</label>
         <select id="ratio">
-          <optgroup label="汎用（書き出しは長辺 2400px）">
+          <optgroup label="汎用（長辺 2400px）">
             <option value="1:1">1:1 スクエア</option>
             <option value="3:4">3:4 縦</option><option value="4:3">4:3 横</option>
             <option value="9:16">9:16 縦</option><option value="16:9">16:9 横</option>
             <option value="4:5">4:5 縦</option>
           </optgroup>
-          <optgroup label="Instagram（仕様の画素数で書き出す）">
+          <optgroup label="Instagram">
             <option value="ig-square">フィード 正方形 1080×1080</option>
             <option value="ig-portrait">フィード 縦 4:5 1080×1350</option>
             <option value="ig-tall">フィード 縦 3:4 1080×1440</option>
             <option value="ig-landscape">フィード 横 1.91:1 1080×566</option>
             <option value="ig-story">ストーリーズ／リール 9:16 1080×1920</option>
           </optgroup>
-          <optgroup label="X（Twitter）（この画素数で書き出す）">
+          <optgroup label="X（Twitter）">
             <option value="x-landscape">ポスト 横 16:9 1600×900</option>
             <option value="x-square">ポスト 正方形 1080×1080</option>
             <option value="x-portrait">ポスト 縦 4:5 1080×1350</option>
             <option value="x-header">ヘッダー 3:1 1500×500</option>
           </optgroup>
-          <optgroup label="自分で決める">
-            <option value="custom">好きな大きさ（画素で指定）</option>
+          <optgroup label="カスタム">
+            <option value="custom">サイズを指定（px）</option>
           </optgroup>
         </select>
       </div>
@@ -224,42 +224,42 @@
         <label>高さ <input type="number" id="oh" min="64" max="8000" step="1" value="1080" inputmode="numeric"> px</label>
       </div>
       <p id="out-size" class="note"></p>
-      <label class="switch"><input type="checkbox" id="repeat" role="switch"><span class="knob" aria-hidden="true"></span>リピートできる絵にする（上下左右がつながる）</label>
-      <label class="switch" id="repeatgrid-row" hidden><input type="checkbox" id="repeatgrid" role="switch"><span class="knob" aria-hidden="true"></span>2×2 に並べて継ぎ目を見る</label>
-      <p id="repeat-note" class="note" hidden>絵の中ほどの柄は、リピートなしのときと同じ。端のあたりだけ、つながるように柄が変わる。ブロブの切れ方と、どの画像がどこに入るかは変わる（大きすぎるブロブを割る処理と、隣どうしで同じ素材を避ける割り当ては、リピートでは使えない）。書き出すのはいつも1枚ぶん。</p>
-      <button type="button" class="primary" id="save">PNGを保存</button>
-      <label class="switch"><input type="checkbox" id="motion" role="switch"><span class="knob" aria-hidden="true"></span>動かす（ループする動画にする）</label>
+      <label class="switch"><input type="checkbox" id="repeat" role="switch"><span class="knob" aria-hidden="true"></span>リピート可能にする（上下左右がつながる）</label>
+      <label class="switch" id="repeatgrid-row" hidden><input type="checkbox" id="repeatgrid" role="switch"><span class="knob" aria-hidden="true"></span>2×2 で継ぎ目を確認</label>
+      <p id="repeat-note" class="note" hidden>端付近の柄が、つながるように変わります。ブロブの分割と画像の割り当ても変わります（大きいブロブの分割と「隣接で重複を避ける」は無効）。書き出しは1枚分です。</p>
+      <button type="button" class="primary" id="save">PNG を保存</button>
+      <label class="switch"><input type="checkbox" id="motion" role="switch"><span class="knob" aria-hidden="true"></span>アニメーション（ループ動画）</label>
       <div id="motion-box" hidden>
-        <div class="row"><label for="mkind">動かし方</label>
+        <div class="row"><label for="mkind">動きの種類</label>
           <select id="mkind">
-            <option value="sway">ゆらぎ（ばらばらに揺れる）</option>
-            <option value="flow">流れ（液体のように回る）</option>
-            <option value="breathe">呼吸（ブロブごとにふくらむ・しぼむ）</option>
-            <option value="wave">波（一方向へ渡る）</option>
-            <option value="double">二重ゆがめ（強くうねる）</option>
+            <option value="sway">ゆらぎ（不規則な揺れ）</option>
+            <option value="flow">流れ（液体状の渦）</option>
+            <option value="breathe">呼吸（膨張と収縮）</option>
+            <option value="wave">波（一方向）</option>
+            <option value="double">二重ゆがみ（強いうねり）</option>
           </select>
         </div>
-        <div class="row"><label for="mamt">動きの大きさ <output id="o-mamt"></output></label><input type="range" id="mamt" min="0" max="150" step="5" value="60"></div>
-        <div class="row"><label for="mkind2">重ねる動かし方</label>
+        <div class="row"><label for="mamt">動きの強さ <output id="o-mamt"></output></label><input type="range" id="mamt" min="0" max="150" step="5" value="60"></div>
+        <div class="row"><label for="mkind2">重ねる動き</label>
           <select id="mkind2">
             <option value="">重ねない</option>
-            <option value="sway">ゆらぎ（ばらばらに揺れる）</option>
-            <option value="flow">流れ（液体のように回る）</option>
-            <option value="breathe">呼吸（ブロブごとにふくらむ・しぼむ）</option>
-            <option value="wave">波（一方向へ渡る）</option>
-            <option value="double">二重ゆがめ（強くうねる）</option>
+            <option value="sway">ゆらぎ（不規則な揺れ）</option>
+            <option value="flow">流れ（液体状の渦）</option>
+            <option value="breathe">呼吸（膨張と収縮）</option>
+            <option value="wave">波（一方向）</option>
+            <option value="double">二重ゆがみ（強いうねり）</option>
           </select>
         </div>
-        <div class="row"><label for="mamt2">重ねる動きの大きさ <output id="o-mamt2"></output></label><input type="range" id="mamt2" min="0" max="150" step="5" value="40"></div>
+        <div class="row"><label for="mamt2">重ねる動きの強さ <output id="o-mamt2"></output></label><input type="range" id="mamt2" min="0" max="150" step="5" value="40"></div>
         <div class="row"><label for="mfine">動きの細かさ <output id="o-mfine"></output></label><input type="range" id="mfine" min="2" max="30" value="10"></div>
-        <div class="row"><label for="msec">1周の長さ <output id="o-msec"></output></label><input type="range" id="msec" min="2" max="12" value="5"></div>
-        <label class="switch"><input type="checkbox" id="lava" role="switch"><span class="knob" aria-hidden="true"></span>ラバランプ（ブロブが生まれ、くっつき、ちぎれる）</label>
-        <div class="row"><label for="mlava">溶け具合 <output id="o-mlava"></output></label><input type="range" id="mlava" min="5" max="100" step="5" value="40"></div>
-        <div class="row"><label for="mgrow">侵食の早さ <output id="o-mgrow"></output></label><input type="range" id="mgrow" min="1" max="20" value="6"></div>
+        <div class="row"><label for="msec">ループの長さ <output id="o-msec"></output></label><input type="range" id="msec" min="2" max="12" value="5"></div>
+        <label class="switch"><input type="checkbox" id="lava" role="switch"><span class="knob" aria-hidden="true"></span>ラバランプ（ブロブの生成・結合・分離）</label>
+        <div class="row"><label for="mlava">変化の強さ <output id="o-mlava"></output></label><input type="range" id="mlava" min="5" max="100" step="5" value="40"></div>
+        <div class="row"><label for="mgrow">侵食の速さ <output id="o-mgrow"></output></label><input type="range" id="mgrow" min="1" max="20" value="6"></div>
         <p id="lava-progress" class="note" role="status"></p>
-        <p id="lava-note" class="note" hidden>ブロブが生まれて、くっつき、ちぎれて消える。計算に時間がかかる。プレビューは、しばらく待つと動き出す。書き出しは数分かかる。リピートできる絵と「並べて比べる」では使えない。</p>
+        <p id="lava-note" class="note" hidden>ブロブが生成・結合・分離します。計算に時間がかかります。プレビューは準備後に再生され、書き出しには数分かかります。リピートと比較表示では使用できません。</p>
         <p id="video-note" class="note"></p>
-        <button type="button" class="primary" id="save-video">MP4を保存</button>
+        <button type="button" class="primary" id="save-video">MP4 を保存</button>
       </div>
     </fieldset>
   </form>

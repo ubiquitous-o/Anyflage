@@ -1,0 +1,602 @@
+[
+ {
+  "id": "sample-aic-11",
+  "set": "sample",
+  "group": "sample",
+  "label": "Self-Portrait",
+  "image": "sample/aic-11.webp",
+  "mask": null,
+  "bbox": [
+   0,
+   0,
+   351,
+   402
+  ],
+  "source": "Art Institute of Chicago「Self-Portrait」Walter Shirlaw (American, 1838–1909)、1878。CC0。https://www.artic.edu/artworks/11"
+ },
+ {
+  "id": "sample-aic-80607",
+  "set": "sample",
+  "group": "sample",
+  "label": "Self-Portrait",
+  "image": "sample/aic-80607.webp",
+  "mask": null,
+  "bbox": [
+   0,
+   0,
+   484,
+   711
+  ],
+  "source": "Art Institute of Chicago「Self-Portrait」Vincent van Gogh (Dutch, 1853–1890)、1887。CC0。https://www.artic.edu/artworks/80607"
+ },
+ {
+  "id": "sample-aic-862",
+  "set": "sample",
+  "group": "sample",
+  "label": "Portrait of an Artist",
+  "image": "sample/aic-862.webp",
+  "mask": null,
+  "bbox": [
+   0,
+   0,
+   439,
+   378
+  ],
+  "source": "Art Institute of Chicago「Portrait of an Artist」Follower of Frans Hals (Dutch, 1582–1666)、1644。CC0。https://www.artic.edu/artworks/862"
+ },
+ {
+  "id": "sample-aic-15708",
+  "set": "sample",
+  "group": "sample",
+  "label": "Portrait of a Man with Gray Hair",
+  "image": "sample/aic-15708.webp",
+  "mask": null,
+  "bbox": [
+   0,
+   0,
+   263,
+   479
+  ],
+  "source": "Art Institute of Chicago「Portrait of a Man with Gray Hair」Henry Raeburn (Scottish, 1756–1823)、1810–20。CC0。https://www.artic.edu/artworks/15708"
+ },
+ {
+  "id": "sample-aic-864",
+  "set": "sample",
+  "group": "sample",
+  "label": "Portrait of a Man with a Pink",
+  "image": "sample/aic-864.webp",
+  "mask": null,
+  "bbox": [
+   0,
+   0,
+   316,
+   311
+  ],
+  "source": "Art Institute of Chicago「Portrait of a Man with a Pink」Quentin Massys (Netherlandish, 1466-1530)、1500–10。CC0。https://www.artic.edu/artworks/864"
+ },
+ {
+  "id": "sample-aic-89043",
+  "set": "sample",
+  "group": "sample",
+  "label": "Portrait of General José Manuel Romero",
+  "image": "sample/aic-89043.webp",
+  "mask": null,
+  "bbox": [
+   0,
+   0,
+   170,
+   211
+  ],
+  "source": "Art Institute of Chicago「Portrait of General José Manuel Romero」Francisco José de Goya y Lucientes (Spanish, 1746–1828)、c. 1810。CC0。https://www.artic.edu/artworks/89043"
+ },
+ {
+  "id": "sample-aic-31233",
+  "set": "sample",
+  "group": "sample",
+  "label": "Portrait of Constance Pipelet",
+  "image": "sample/aic-31233.webp",
+  "mask": null,
+  "bbox": [
+   0,
+   0,
+   194,
+   214
+  ],
+  "source": "Art Institute of Chicago「Portrait of Constance Pipelet」Jean-Baptiste-François Desoria (French, 1758–1832)、1797。CC0。https://www.artic.edu/artworks/31233"
+ },
+ {
+  "id": "sample-aic-16367",
+  "set": "sample",
+  "group": "sample",
+  "label": "Portrait of Isidoro Máiquez",
+  "image": "sample/aic-16367.webp",
+  "mask": null,
+  "bbox": [
+   0,
+   0,
+   238,
+   309
+  ],
+  "source": "Art Institute of Chicago「Portrait of Isidoro Máiquez」Francisco José de Goya y Lucientes (Spanish, 1746–1828)、c. 1807。CC0。https://www.artic.edu/artworks/16367"
+ },
+ {
+  "id": "sample-aic-69003",
+  "set": "sample",
+  "group": "sample",
+  "label": "Self-Portrait",
+  "image": "sample/aic-69003.webp",
+  "mask": null,
+  "bbox": [
+   0,
+   0,
+   340,
+   358
+  ],
+  "source": "Art Institute of Chicago「Self-Portrait」Nicolas de Largillière (French, 1656–1746)、c. 1725。CC0。https://www.artic.edu/artworks/69003"
+ },
+ {
+  "id": "sample-aic-11390",
+  "set": "sample",
+  "group": "sample",
+  "label": "Portrait of a Noblewoman Dressed in Mourning",
+  "image": "sample/aic-11390.webp",
+  "mask": null,
+  "bbox": [
+   0,
+   0,
+   83,
+   121
+  ],
+  "source": "Art Institute of Chicago「Portrait of a Noblewoman Dressed in Mourning」Jacopo da Empoli (Jacopo Chimenti; Italian, 1551–1640)、c. 1600。CC0。https://www.artic.edu/artworks/11390"
+ },
+ {
+  "id": "sample-aic-87760",
+  "set": "sample",
+  "group": "sample",
+  "label": "Portrait of Magdalena of Saxony, Wife of Elector Joachim II of Brandenburg",
+  "image": "sample/aic-87760.webp",
+  "mask": null,
+  "bbox": [
+   0,
+   0,
+   194,
+   214
+  ],
+  "source": "Art Institute of Chicago「Portrait of Magdalena of Saxony, Wife of Elector Joachim II of Brandenburg」Lucas Cranach the Elder (German, 1472–1553)、c. 1529。CC0。https://www.artic.edu/artworks/87760"
+ },
+ {
+  "id": "sample-aic-42949",
+  "set": "sample",
+  "group": "sample",
+  "label": "Portrait of Jeanne Wenz",
+  "image": "sample/aic-42949.webp",
+  "mask": null,
+  "bbox": [
+   0,
+   0,
+   303,
+   304
+  ],
+  "source": "Art Institute of Chicago「Portrait of Jeanne Wenz」Henri de Toulouse-Lautrec (French, 1864–1901)、1886。CC0。https://www.artic.edu/artworks/42949"
+ },
+ {
+  "id": "sample-aic-110661",
+  "set": "sample",
+  "group": "sample",
+  "label": "Self-Portrait",
+  "image": "sample/aic-110661.webp",
+  "mask": null,
+  "bbox": [
+   0,
+   0,
+   196,
+   248
+  ],
+  "source": "Art Institute of Chicago「Self-Portrait」Frédéric Bazille (French, 1841-1870)、1865–66。CC0。https://www.artic.edu/artworks/110661"
+ },
+ {
+  "id": "sample-aic-14594",
+  "set": "sample",
+  "group": "sample",
+  "label": "Portrait of a Woman with a Black Fichu",
+  "image": "sample/aic-14594.webp",
+  "mask": null,
+  "bbox": [
+   0,
+   0,
+   332,
+   873
+  ],
+  "source": "Art Institute of Chicago「Portrait of a Woman with a Black Fichu」Édouard Manet (French, 1832–1883)、c. 1878。CC0。https://www.artic.edu/artworks/14594"
+ },
+ {
+  "id": "sample-aic-105945",
+  "set": "sample",
+  "group": "sample",
+  "label": "Portrait of a Lady",
+  "image": "sample/aic-105945.webp",
+  "mask": null,
+  "bbox": [
+   0,
+   0,
+   143,
+   244
+  ],
+  "source": "Art Institute of Chicago「Portrait of a Lady」Frans Hals (Dutch, 1582–1666)、1627。CC0。https://www.artic.edu/artworks/105945"
+ },
+ {
+  "id": "sample-aic-20686",
+  "set": "sample",
+  "group": "sample",
+  "label": "Portrait of a Woman",
+  "image": "sample/aic-20686.webp",
+  "mask": null,
+  "bbox": [
+   0,
+   0,
+   251,
+   424
+  ],
+  "source": "Art Institute of Chicago「Portrait of a Woman」Jean Léon Gérôme (French, 1824–1904)、1851。CC0。https://www.artic.edu/artworks/20686"
+ },
+ {
+  "id": "sample-aic-105604",
+  "set": "sample",
+  "group": "sample",
+  "label": "Portrait of the Katchef Dahouth, Christian Mameluke",
+  "image": "sample/aic-105604.webp",
+  "mask": null,
+  "bbox": [
+   0,
+   0,
+   207,
+   272
+  ],
+  "source": "Art Institute of Chicago「Portrait of the Katchef Dahouth, Christian Mameluke」Anne-Louis Girodet de Roussy-Trioson (French, 1767–1824)、1804。CC0。https://www.artic.edu/artworks/105604"
+ },
+ {
+  "id": "sample-aic-2179",
+  "set": "sample",
+  "group": "sample",
+  "label": "Portrait of a Man",
+  "image": "sample/aic-2179.webp",
+  "mask": null,
+  "bbox": [
+   0,
+   0,
+   319,
+   383
+  ],
+  "source": "Art Institute of Chicago「Portrait of a Man」Antonio Maria Esquivel (Spanish, 1806–1857)、1843。CC0。https://www.artic.edu/artworks/2179"
+ },
+ {
+  "id": "sample-aic-107920",
+  "set": "sample",
+  "group": "sample",
+  "label": "Portrait of Elizabeth of Austria, Wife of King Charles IX of France",
+  "image": "sample/aic-107920.webp",
+  "mask": null,
+  "bbox": [
+   0,
+   0,
+   408,
+   440
+  ],
+  "source": "Art Institute of Chicago「Portrait of Elizabeth of Austria, Wife of King Charles IX of France」Follower of François Clouet (French, before 1520–1572)、after 1571。CC0。https://www.artic.edu/artworks/107920"
+ },
+ {
+  "id": "sample-aic-88374",
+  "set": "sample",
+  "group": "sample",
+  "label": "Portrait of a Musician",
+  "image": "sample/aic-88374.webp",
+  "mask": null,
+  "bbox": [
+   0,
+   0,
+   141,
+   182
+  ],
+  "source": "Art Institute of Chicago「Portrait of a Musician」Alessandro Longhi (Italian, 1733–1813)、c. 1770。CC0。https://www.artic.edu/artworks/88374"
+ },
+ {
+  "id": "sample-met-435895",
+  "set": "sample",
+  "group": "sample",
+  "label": "Self-Portrait",
+  "image": "sample/met-435895.webp",
+  "mask": null,
+  "bbox": [
+   0,
+   0,
+   332,
+   429
+  ],
+  "source": "The Metropolitan Museum of Art「Self-Portrait」George Chinnery、1825–28。CC0。https://www.metmuseum.org/art/collection/search/435895"
+ },
+ {
+  "id": "sample-met-441115",
+  "set": "sample",
+  "group": "sample",
+  "label": "Self-Portrait",
+  "image": "sample/met-441115.webp",
+  "mask": null,
+  "bbox": [
+   0,
+   0,
+   165,
+   184
+  ],
+  "source": "The Metropolitan Museum of Art「Self-Portrait」Anton Raphael Mengs、1776。CC0。https://www.metmuseum.org/art/collection/search/441115"
+ },
+ {
+  "id": "sample-met-437504",
+  "set": "sample",
+  "group": "sample",
+  "label": "Self-Portrait",
+  "image": "sample/met-437504.webp",
+  "mask": null,
+  "bbox": [
+   0,
+   0,
+   217,
+   231
+  ],
+  "source": "The Metropolitan Museum of Art「Self-Portrait」George Romney、1795。CC0。https://www.metmuseum.org/art/collection/search/437504"
+ },
+ {
+  "id": "sample-met-435856",
+  "set": "sample",
+  "group": "sample",
+  "label": "Self-Portrait",
+  "image": "sample/met-435856.webp",
+  "mask": null,
+  "bbox": [
+   0,
+   0,
+   347,
+   393
+  ],
+  "source": "The Metropolitan Museum of Art「Self-Portrait」Eugène Carrière、ca. 1893。CC0。https://www.metmuseum.org/art/collection/search/435856"
+ },
+ {
+  "id": "sample-met-436258",
+  "set": "sample",
+  "group": "sample",
+  "label": "Self-Portrait",
+  "image": "sample/met-436258.webp",
+  "mask": null,
+  "bbox": [
+   0,
+   0,
+   153,
+   256
+  ],
+  "source": "The Metropolitan Museum of Art「Self-Portrait」Anthony van Dyck、ca. 1620–21。CC0。https://www.metmuseum.org/art/collection/search/436258"
+ },
+ {
+  "id": "sample-met-436297",
+  "set": "sample",
+  "group": "sample",
+  "label": "Self-Portrait",
+  "image": "sample/met-436297.webp",
+  "mask": null,
+  "bbox": [
+   0,
+   0,
+   432,
+   554
+  ],
+  "source": "The Metropolitan Museum of Art「Self-Portrait」Henri Fantin-Latour、ca. 1858。CC0。https://www.metmuseum.org/art/collection/search/436297"
+ },
+ {
+  "id": "sample-met-436211",
+  "set": "sample",
+  "group": "sample",
+  "label": "Portrait of a Man (Self-Portrait?)",
+  "image": "sample/met-436211.webp",
+  "mask": null,
+  "bbox": [
+   0,
+   0,
+   146,
+   136
+  ],
+  "source": "The Metropolitan Museum of Art「Portrait of a Man (Self-Portrait?)」Willem Drost、1653 or 1655。CC0。https://www.metmuseum.org/art/collection/search/436211"
+ },
+ {
+  "id": "sample-met-437397",
+  "set": "sample",
+  "group": "sample",
+  "label": "Self-Portrait",
+  "image": "sample/met-437397.webp",
+  "mask": null,
+  "bbox": [
+   0,
+   0,
+   203,
+   239
+  ],
+  "source": "The Metropolitan Museum of Art「Self-Portrait」Rembrandt (Rembrandt van Rijn)、1660。CC0。https://www.metmuseum.org/art/collection/search/437397"
+ },
+ {
+  "id": "sample-met-437874",
+  "set": "sample",
+  "group": "sample",
+  "label": "Portrait of a Man, Possibly a Self-Portrait",
+  "image": "sample/met-437874.webp",
+  "mask": null,
+  "bbox": [
+   0,
+   0,
+   229,
+   253
+  ],
+  "source": "The Metropolitan Museum of Art「Portrait of a Man, Possibly a Self-Portrait」Velázquez (Diego Rodríguez de Silva y Velázquez)、ca. 1635。CC0。https://www.metmuseum.org/art/collection/search/437874"
+ },
+ {
+  "id": "sample-met-436631",
+  "set": "sample",
+  "group": "sample",
+  "label": "Self-Portrait",
+  "image": "sample/met-436631.webp",
+  "mask": null,
+  "bbox": [
+   0,
+   0,
+   193,
+   203
+  ],
+  "source": "The Metropolitan Museum of Art「Self-Portrait」George Henry Harlow。CC0。https://www.metmuseum.org/art/collection/search/436631"
+ },
+ {
+  "id": "sample-met-437508",
+  "set": "sample",
+  "group": "sample",
+  "label": "Self-Portrait",
+  "image": "sample/met-437508.webp",
+  "mask": null,
+  "bbox": [
+   0,
+   0,
+   249,
+   345
+  ],
+  "source": "The Metropolitan Museum of Art「Self-Portrait」Salvator Rosa、ca. 1647。CC0。https://www.metmuseum.org/art/collection/search/437508"
+ },
+ {
+  "id": "sample-met-436210",
+  "set": "sample",
+  "group": "sample",
+  "label": "Self-Portrait",
+  "image": "sample/met-436210.webp",
+  "mask": null,
+  "bbox": [
+   0,
+   0,
+   92,
+   159
+  ],
+  "source": "The Metropolitan Museum of Art「Self-Portrait」Gerrit Dou、ca. 1665。CC0。https://www.metmuseum.org/art/collection/search/436210"
+ },
+ {
+  "id": "sample-met-436749",
+  "set": "sample",
+  "group": "sample",
+  "label": "Portrait of a Man",
+  "image": "sample/met-436749.webp",
+  "mask": null,
+  "bbox": [
+   0,
+   0,
+   207,
+   295
+  ],
+  "source": "The Metropolitan Museum of Art「Portrait of a Man」Lucia Anguissola、ca. 1560。CC0。https://www.metmuseum.org/art/collection/search/436749"
+ },
+ {
+  "id": "sample-met-436480",
+  "set": "sample",
+  "group": "sample",
+  "label": "Portrait of a Man",
+  "image": "sample/met-436480.webp",
+  "mask": null,
+  "bbox": [
+   0,
+   0,
+   256,
+   481
+  ],
+  "source": "The Metropolitan Museum of Art「Portrait of a Man」German (Nuremberg) Painter、1491。CC0。https://www.metmuseum.org/art/collection/search/436480"
+ },
+ {
+  "id": "sample-met-437859",
+  "set": "sample",
+  "group": "sample",
+  "label": "Portrait of a Woman",
+  "image": "sample/met-437859.webp",
+  "mask": null,
+  "bbox": [
+   0,
+   0,
+   166,
+   207
+  ],
+  "source": "The Metropolitan Museum of Art「Portrait of a Woman」Giovanni di Francesco del Cervelliera、ca. 1445。CC0。https://www.metmuseum.org/art/collection/search/437859"
+ },
+ {
+  "id": "sample-met-435980",
+  "set": "sample",
+  "group": "sample",
+  "label": "Portrait of a Child",
+  "image": "sample/met-435980.webp",
+  "mask": null,
+  "bbox": [
+   0,
+   0,
+   156,
+   153
+  ],
+  "source": "The Metropolitan Museum of Art「Portrait of a Child」Camille Corot、ca. 1835。CC0。https://www.metmuseum.org/art/collection/search/435980"
+ },
+ {
+  "id": "sample-met-437000",
+  "set": "sample",
+  "group": "sample",
+  "label": "Portrait of a Woman",
+  "image": "sample/met-437000.webp",
+  "mask": null,
+  "bbox": [
+   0,
+   0,
+   285,
+   271
+  ],
+  "source": "The Metropolitan Museum of Art「Portrait of a Woman」Master of the Castello Nativity、probably 1450s。CC0。https://www.metmuseum.org/art/collection/search/437000"
+ },
+ {
+  "id": "sample-met-437917",
+  "set": "sample",
+  "group": "sample",
+  "label": "Portrait of a Woman",
+  "image": "sample/met-437917.webp",
+  "mask": null,
+  "bbox": [
+   0,
+   0,
+   110,
+   123
+  ],
+  "source": "The Metropolitan Museum of Art「Portrait of a Woman」Cornelis de Vos。CC0。https://www.metmuseum.org/art/collection/search/437917"
+ },
+ {
+  "id": "sample-met-436521",
+  "set": "sample",
+  "group": "sample",
+  "label": "Portrait of a Man",
+  "image": "sample/met-436521.webp",
+  "mask": null,
+  "bbox": [
+   0,
+   0,
+   268,
+   278
+  ],
+  "source": "The Metropolitan Museum of Art「Portrait of a Man」Hugo van der Goes、ca. 1475。CC0。https://www.metmuseum.org/art/collection/search/436521"
+ },
+ {
+  "id": "sample-met-437146",
+  "set": "sample",
+  "group": "sample",
+  "label": "Portrait of a Woman",
+  "image": "sample/met-437146.webp",
+  "mask": null,
+  "bbox": [
+   0,
+   0,
+   96,
+   117
+  ],
+  "source": "The Metropolitan Museum of Art「Portrait of a Woman」Francesco Montemezzano。CC0。https://www.metmuseum.org/art/collection/search/437146"
+ }
+]

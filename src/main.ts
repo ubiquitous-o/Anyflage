@@ -4,7 +4,8 @@ import { Kao } from './engine/kao.ts';
 import { PATTERNS, patternById } from './engine/patterns.ts';
 import type { Camo, Method, Params, Picker, Raster, RGB } from './engine/types.ts';
 import { Material } from './material.ts';
-import { addOwnImage, loadCutout, loadManifests } from './samples.ts';
+import { addOwnImage, forgetOwnImages, loadCutout, loadManifests, restoreOwnImages } from './samples.ts';
+import { loadText, saveText } from './store.ts';
 import type { CutKind } from './cutout.ts';
 import { loadSwatches } from './swatches.ts';
 import type { Sample } from './samples.ts';
@@ -349,24 +350,60 @@ function writeUrl(): void {
   if (showSources) q.set('sources', '1');
   q.set('seed', String(seed));
   if (shuf) q.set('shuf', String(shuf));
-  history.replaceState(null, '', `?${q}`);
+  const text = q.toString();
+  history.replaceState(null, '', `?${text}`);
+  saveText('last', text); // ブラウザを閉じても、最後の状態から始められるように
+  record(text);
 }
-function readUrl(): void {
-  const q = new URLSearchParams(location.search);
-  for (const id of FIELDS) { const el = $(id); el.dataset.initial = el.value; const v = q.get(id); if (v !== null) el.value = v; }
-  if (q.get('fitblob') === '0') $('fitblob').checked = false;
-  if (q.get('smooth') === '0') $('smooth').checked = false;
-  if (q.get('soft') === '0') $('soft').checked = false;
-  if (q.get('trim') === '0') $('trim').checked = false;
-  if (q.get('soften') === '0') $('soften').checked = false;
-  if (q.get('edges') === '1') $('edges').checked = true;
-  if (q.get('seed')) seed = +q.get('seed')! || seed;
+/** 最初の値を覚える。applyQuery が「指定のない項目は最初の値に戻す」ために使う。起動時に1回だけ */
+const SEED0 = seed;
+function rememberDefaults(): void { for (const id of FIELDS) $(id).dataset.initial = $(id).value; }
+/** 設定をまるごと、この問い合わせ文字列の状態にする。指定のない項目は最初の値に戻す */
+function applyQuery(text: string): void {
+  const q = new URLSearchParams(text);
+  for (const id of FIELDS) { const el = $(id), v = q.get(id); el.value = v !== null ? v : el.dataset.initial || el.value; }
+  for (const id of ['fitblob', 'smooth', 'soft', 'trim', 'soften']) $(id).checked = q.get(id) !== '0';
+  $('edges').checked = q.get('edges') === '1';
+  seed = +(q.get('seed') || 0) || SEED0;
   shuf = +(q.get('shuf') || 0) || 0;
+  picked.clear();
   showSources = q.get('sources') === '1';
   if (q.get('compare') === '6') $('compare').value = '10'; // 「6方式を並べる」はなくした。古い URL は「はめ方を比べる」に読み替える
   const want = q.get('groups');
-  for (const gname of want !== null ? want.split(',') : groups.slice(0, 2)) if (groups.includes(gname)) picked.add(gname);
+  for (const gname of want !== null ? want.split(',') : []) if (groups.includes(gname)) picked.add(gname);
+  $('showsrc').setAttribute('aria-pressed', String(showSources));
 }
+
+// ---- 元に戻す・やり直す ----
+// 履歴は、設定の問い合わせ文字列の並び。描き直すたびに、前と違えば1つ足す。ブラウザを閉じても残す。
+// 足した画像そのものは履歴に入れない（画像は別に覚えている）。戻した先のセットがもう無ければ、そのセットは選ばれないだけ
+const HIST_MAX = 200;
+let hist: string[] = [], histAt = -1, replaying = false;
+function record(text: string): void {
+  if (replaying || hist[histAt] === text) return;
+  hist = hist.slice(Math.max(0, histAt + 2 - HIST_MAX), histAt + 1); hist.push(text); histAt = hist.length - 1;
+  saveText('history', JSON.stringify({ hist, at: histAt })); syncHistory();
+}
+function syncHistory(): void { $('undo').disabled = histAt <= 0; $('redo').disabled = histAt >= hist.length - 1; }
+function travel(step: number): void {
+  const to = histAt + step; if (to < 0 || to >= hist.length) return;
+  histAt = to; replaying = true;
+  applyQuery(hist[histAt]); drawChips(); syncUi(); syncHistory();
+  saveText('history', JSON.stringify({ hist, at: histAt }));
+  void draw().finally(() => { replaying = false; });
+}
+$('undo').addEventListener('click', () => travel(-1));
+$('redo').addEventListener('click', () => travel(1));
+window.addEventListener('keydown', (ev) => {
+  if (!(ev.metaKey || ev.ctrlKey) || ev.altKey) return;
+  const k = ev.key.toLowerCase(), t = ev.target;
+  if (k !== 'z' && k !== 'y') return;
+  // 文字や数字を打つ欄の中では、ブラウザ自身の「元に戻す」に任せる
+  if (t instanceof HTMLTextAreaElement || (t instanceof HTMLInputElement && ['text', 'number', 'search'].includes(t.type))) return;
+  ev.preventDefault();
+  travel(k === 'y' || ev.shiftKey ? 1 : -1);
+});
+
 
 // スライダーは、動かしているあいだは数字だけ変え、離したときに描き直す。動かすたびに描くと、重い描画が何度も走る。
 // 選択欄とチェックは、変えたらすぐ描き直す。名前の入力、ファイル選び、画素数の入力では描き直さない
@@ -412,6 +449,17 @@ $('ownadd').addEventListener('click', async () => {
   if (+$('per').value < added) $('per').value = String(added); // 足した枚数ぶんは使う
   syncUi(); void draw();
 });
+let forgetArmed = 0;
+$('ownforget').addEventListener('click', async () => { // 押し間違いで消えないよう、2回押して消す
+  const btn = $('ownforget');
+  if (Date.now() - forgetArmed > 4000) { forgetArmed = Date.now(); btn.textContent = '本当に消す（もう一度押す）'; setTimeout(() => { if (Date.now() - forgetArmed >= 4000) btn.textContent = '足したセットを全部消す'; }, 4100); return; }
+  forgetArmed = 0; btn.textContent = '足したセットを全部消す';
+  await forgetOwnImages();
+  const gone = new Set(all.filter((s) => s.set === 'own').map((s) => s.group));
+  all = all.filter((s) => s.set !== 'own'); groups = groups.filter((gname) => !gone.has(gname) || all.some((s) => s.group === gname));
+  for (const gname of gone) if (!groups.includes(gname)) { picked.delete(gname); materials.forEach((_m, id) => { if (id.startsWith('own-')) materials.delete(id); }); }
+  drawChips(); syncUi(); void draw();
+});
 $('showsrc').addEventListener('click', () => { showSources = !showSources; $('showsrc').setAttribute('aria-pressed', String(showSources)); void draw(); });
 $('save').addEventListener('click', async () => {
   if (exporting) return;
@@ -438,8 +486,12 @@ for (const kind of ['その他', '実物', '軍用', '狩猟'] as const) {
   for (const pt of PATTERNS.filter((x) => x.kind === kind)) { const o = document.createElement('option'); o.value = pt.id; o.textContent = pt.name; og.appendChild(o); }
   $('pattern').appendChild(og);
 }
-all = await loadManifests();
+all = [...(await loadManifests()), ...(await restoreOwnImages())]; // 前に足した画像も読み戻す
 groups = [...new Set(all.map((s) => s.group))];
-readUrl();
-$('showsrc').setAttribute('aria-pressed', String(showSources));
-drawChips(); syncUi(); void draw();
+rememberDefaults();
+// URL に指定があればそれを使う。なければ、前に閉じたときの状態から始める
+const startText = location.search.length > 1 ? location.search.slice(1) : loadText('last') || '';
+try { const saved = JSON.parse(loadText('history') || 'null'); if (saved && Array.isArray(saved.hist)) { hist = saved.hist.filter((x: unknown) => typeof x === 'string').slice(-HIST_MAX); histAt = Math.min(hist.length - 1, Math.max(-1, saved.at | 0)); } } catch { /* 壊れた履歴は使わない */ }
+if (startText) applyQuery(startText); else applyQuery('');
+if (!startText) { picked.clear(); for (const gname of groups.slice(0, 1)) picked.add(gname); } // 何も覚えていなければ、先頭のセット（公開版では sample）
+drawChips(); syncUi(); syncHistory(); void draw();

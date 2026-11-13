@@ -22,6 +22,10 @@
         <button type="button" id="zoom-fit">全体</button>
         <button type="button" id="zoom-100">等倍</button>
       </div>
+      <div class="zoom" role="group" aria-label="編集の履歴">
+        <button type="button" id="undo" title="元に戻す（⌘Z／Ctrl+Z）" disabled>↶ 戻す</button>
+        <button type="button" id="redo" title="やり直す（⇧⌘Z／Ctrl+Y）" disabled>↷ やり直す</button>
+      </div>
       <p class="stats"><span id="s-info"></span> <span id="status" role="status"></span></p>
     </div>
   </section>
@@ -63,7 +67,8 @@
             <button type="button" id="ownadd" class="primary" disabled>追加する</button>
           </li>
         </ol>
-        <p class="note">追加するたびに、新しいセットになる。背景除去はこのブラウザの中で計算する。画像はどこにも送らない。</p>
+        <p class="note">追加するたびに、新しいセットになる。背景除去はこのブラウザの中で計算する。画像はどこにも送らない。足したセットはこのブラウザが覚えていて、閉じても次に開いたとき残っている。</p>
+        <button type="button" id="ownforget">足したセットを全部消す</button>
       </details>
     </fieldset>
 
@@ -89,7 +94,7 @@
         </div>
         <div class="row"><label for="neck">くびれでブロブを切る <output id="o-neck"></output></label><input type="range" id="neck" min="0" max="95" step="5" value="50"></div>
         <div class="row"><label for="notch">えぐれでブロブを切る <output id="o-notch"></output></label><input type="range" id="notch" min="0" max="100" step="5" value="50"></div>
-        <div class="row"><label for="flat">小さいブロブは塗るだけ <output id="o-flat"></output></label><input type="range" id="flat" min="0" max="300" step="10" value="100"></div>
+        <div class="row"><label for="flat">小さいブロブは塗るだけ <output id="o-flat"></output></label><input type="range" id="flat" min="0" max="300" step="10" value="0"></div>
         <label class="check"><input type="checkbox" id="soft" checked> ブロブの縁をなじませる（画素の段々を消す）</label>
         <label class="check"><input type="checkbox" id="edges"> ブロブの境目を線で見る</label>
       </details>

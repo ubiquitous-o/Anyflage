@@ -1,12 +1,23 @@
 # Anyflage
 
-迷彩柄のブロブひとつずつに、写真や物の形を歪めて押し込むグラフィック生成ツール。遠目は迷彩、近づくと顔や人や猫が見える。
+English | [日本語](README.ja.md)
 
-公開版：https://ubiquitous-o.github.io/Anyflage/
+A graphics tool that warps photos and objects and squeezes one into every blob of a camouflage pattern. From a distance it reads as camouflage; up close you see faces, people and cats.
 
-公開版にテスト素材は入っていない。画面の「自分の画像を足す」から画像を入れる。背景が透明な PNG を入れると、透明でない所が切り抜きになる。画像はブラウザの中だけで使い、どこにも送らない。
+https://ubiquitous-o.github.io/Anyflage/
 
-## 動かす
+## How to use
+
+1. **Choose image sets** — "sample" is built in: 40 portraits that museums publish under CC0. Add your own images with "Add your own images". Background removal can keep the face only, the face and hair, the whole person, or an object
+2. **Choose camouflage** — approximations of military and hunting patterns, and patterns traced from real swatches. Set the blob size and colours. You can make your own colour sets
+3. **Adjust the squeeze** — ten fitting methods and the strength of seam carving. Methods and patterns can be compared side by side
+4. **Export** — pick a ratio or pixel size and save a PNG. There are sizes for Instagram and X, and a tileable image whose edges join on all four sides
+
+The browser remembers the images you add and your settings. Background removal also runs in the browser. Images are never sent anywhere.
+
+The interface is in Japanese and English. ⌘Z undoes. Hold B to see the image from before the last redraw.
+
+## Run it
 
 ```bash
 npm install
@@ -16,13 +27,17 @@ npm install
 npm run dev
 ```
 
-- `npm run build` で `dist/` に出す。`main` に push すると GitHub Actions が Pages に出す
-- `npm run typecheck` で型検査
-- `npm run parity` で、試作エンジンと TS 版の出力が画素単位で同じか比べる。試作（`prototype/`）と `samples/` が手元にあるときだけ動く。どちらもリポジトリには入れていない
-- `npm run samples` で、公開データセットからテスト素材を `samples/` に集める。再配布に条件があるのでコミットしない
+- `npm run build` writes to `dist/`. Pushing to `main` deploys to Pages through GitHub Actions
+- `npm run typecheck` checks types
+- `npm run parity` checks that the prototype engine and the TypeScript engine produce identical pixels. It only runs when the prototype (`prototype/`) and `samples/` exist locally. Neither is in the repository
+- `npm run samples` collects test images from public datasets into `samples/`. Their redistribution is restricted, so they are not committed
 
-## 中身
+## What's inside
 
-- `src/engine/` — エンジン。迷彩を作り、素材をブロブに押し込む
-- `src/main.ts` — テスト画面。設定は URL の `?` に出る
-- `public/swatches/` — 実物の見本画像から起こした柄。出典とライセンスは `public/swatches/index.json`
+- `src/engine/` — the engine. Builds the camouflage and squeezes images into the blobs
+- `src/main.ts` — the screen. Settings appear in the URL query
+- `src/cutout.ts`, `public/models/` — background removal. MediaPipe selfie segmentation and the small U²-Net (both Apache 2.0)
+- `src/i18n.ts` — the English text
+- `public/swatches/` — patterns traced from real swatch images. Sources and licences are in `public/swatches/index.json`
+- `public/sets/sample/` — the sample set. CC0 portraits from the Art Institute of Chicago and The Metropolitan Museum of Art, cut out to the face and hair. Sources are in `public/sets/sample.json`
+- `scripts/collect-museum.ts`, `precut.html` — tools for rebuilding the sample set. To cut out, start with `ANYFLAGE_PRECUT=1 npm run dev` and open `/precut.html`

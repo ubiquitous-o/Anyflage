@@ -1,6 +1,7 @@
 // 開発用。samples/museum/ の肖像画を背景除去して、公開版に最初から入れるセット「sample」を作る。
 // 背景除去のモデルはブラウザでしか動かないので、ここ（precut.html）で切り抜き、開発用サーバーの /__precut に送って保存してもらう。
-// 使い方：npm run dev のあと、ブラウザで /precut.html を開く。?kind=skin で髪なし。
+// 使い方：ANYFLAGE_PRECUT=1 npm run dev で起動し、ブラウザで /precut.html を開く。?kind=skin で髪なし。
+// ANYFLAGE_PRECUT=1 を付けないと、保存の受け口が無いので書けない（ふだんの開発中に、ファイルを書く口を開けておかないため）。
 import { cutOut } from './cutout.ts';
 import type { CutKind } from './cutout.ts';
 import type { Sample } from './samples.ts';

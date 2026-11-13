@@ -62,6 +62,9 @@ const EN: Record<string, string> = {
   '動かす（ループする動画にする）': 'Animate (make a looping video)', '動かし方': 'Motion',
   'ゆらぎ（ばらばらに揺れる）': 'Sway (every part drifts on its own)', '流れ（液体のように回る）': 'Flow (swirls like liquid)', '呼吸（ブロブごとにふくらむ・しぼむ）': 'Breathe (each blob swells and shrinks)',
   '波（一方向へ渡る）': 'Wave (travels in one direction)', '二重ゆがめ（強くうねる）': 'Double warp (strong swirls)',
+  '重ねる動かし方': 'Second motion', '重ねない': 'None', '重ねる動きの大きさ': 'Second motion amount',
+  'ラバランプ（ブロブが生まれ、くっつき、ちぎれる）': 'Lava lamp (blobs appear, merge and split)', '溶け具合': 'Melt', '侵食の早さ': 'Invasion speed', 'ラバランプを描いている…': 'Drawing the lava lamp…',
+  'ラバランプは、毎コマ迷彩を作り直して、画像を押し込み直す。遅い。画面には、先に毎秒15コマぶんを描いてから出す。書き出しは全部のコマを描くので、数分かかる。「Anyflage 標準」の柄は、ブロブが生まれてくっつく。ほかの柄は、形が大きく流れてちぎれる。リピートと比較表示では使えない。': 'The lava lamp rebuilds the camouflage and squeezes the images in again for every frame. It is slow. The preview first draws 15 frames per second, then plays them. Export draws every frame and takes minutes. With the "Anyflage standard" pattern, blobs appear and merge. With other patterns, shapes flow widely and split. It does not work with tileable images or comparisons.',
   '動きの大きさ': 'Motion amount', '動きの細かさ': 'Motion detail', '1周の長さ': 'Loop length', 'MP4を保存': 'Save MP4',
   '動画にする絵を描いている…': 'Drawing the image for the video…', '動画を作れなかった。': 'Could not create the video.',
   'このブラウザでは動画を書き出せない（WebCodecs が使えない）。': 'This browser cannot export video (WebCodecs is unavailable).',
@@ -113,6 +116,9 @@ const EN: Record<string, string> = {
 
 /** 数字や名前が入る文言。上から順に試す */
 const RULES: [RegExp, (m: RegExpMatchArray) => string][] = [
+  [/^ラバランプを描いている…（(\d+)\/(\d+) コマ）$/, (m) => `Drawing the lava lamp… (frame ${m[1]} of ${m[2]})`],
+  [/^(動画にしている|ラバランプを描いている)…（下ごしらえ (\d)\/2（(\d+)\/(\d+) コマ））$/, (m) => `${m[1] === '動画にしている' ? 'Encoding the video' : 'Drawing the lava lamp'}… (preparing ${m[2]}/2, frame ${m[3]} of ${m[4]})`],
+  [/^毎秒 ブロブ(\d+)個ぶん$/, (m) => `${m[1]} blob widths per second`],
   [/^(\d+)升$/, (m) => `${m[1]} cells`],
   [/^(\d+)秒$/, (m) => `${m[1]} s`],
   [/^動画の大きさ：(\d+)×(\d+) px・(\d+)fps・(\d+)秒で1周。くり返し再生すると、継ぎ目なくつながる。$/, (m) => `Video size: ${m[1]}×${m[2]} px, ${m[3]} fps, one loop in ${m[4]} s. It joins seamlessly when played on repeat.`],

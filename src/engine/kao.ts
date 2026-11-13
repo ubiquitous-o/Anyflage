@@ -282,6 +282,11 @@ export const Kao = (function () {
     }
     return finishCamo(W, H, ids, C, layer);
   }
+  /** 画素ごとの鍵（同じ鍵でつながった所が1つのブロブ）と層から、迷彩を作る。ブロブ分けを外で決めたいとき用 */
+  function fromKeys(W: number, H: number, key: Int32Array, layer: Int32Array): Camo {
+    var res = label(key, W, H);
+    return finishCamo(W, H, res.ids, res.count, layer);
+  }
   /** ブロブ分けが済んだあとの仕上げ。ブロブごとの面積・外接矩形・層と、各画素の縁からの深さ */
   function finishCamo(W: number, H: number, ids: Int32Array<ArrayBuffer>, C: number, layer: Int32Array): Camo {
     var n = W * H, x, y, i, c, d;
@@ -391,7 +396,7 @@ export const Kao = (function () {
     var pick = new Int32Array(C).fill(-1), flatArea = (p.flatBelow || 0) * W * H;
     for (c = 0; c < C; c++) {
       var L = cm.layer[c];
-      if (!np || cm.area[c] < flatArea || (p.flatLayers && p.flatLayers.indexOf(L) >= 0)) continue;
+      if (!np || cm.area[c] < flatArea || (p.flatLayers && p.flatLayers.indexOf(L) >= 0) || (camo.flat && camo.flat[c])) continue;
       pick[c] = p.assign === 'layer' ? L % np : Math.floor(hash2(camo.keys ? camo.keys[c] : c, 11, seed) * np) % np;
     }
     if (p.assign !== 'apart' || np < 2 || camo.keys) return pick; // 鍵つき（リピート用）のときは、ずらした写しどうしで同じ素材にしたいので、隣よけはしない
@@ -433,7 +438,7 @@ export const Kao = (function () {
       var bw = cm.x1[c] - bx + 1, bh = cm.y1[c] - by + 1, x, y, i, lx, ly;
       if (!cm.area[c]) continue; // 画素を1つも持たないブロブ
       if (clip && (cm.x1[c] < clip[0] || cm.y1[c] < clip[1] || bx > clip[2] || by > clip[3])) continue; // 描く範囲にかからないブロブは飛ばす
-      if (!np || cm.area[c] < flatArea || (p.flatLayers && p.flatLayers.indexOf(L) >= 0)) { // 素材なし、または小さすぎるブロブは色だけ塗る
+      if (!np || cm.area[c] < flatArea || (p.flatLayers && p.flatLayers.indexOf(L) >= 0) || (camo.flat && camo.flat[c])) { // 素材なし、または小さすぎるブロブは色だけ塗る
         for (y = by; y < by + bh; y++) for (x = bx, i = y * W + bx; x < bx + bw; x++, i++) if (ids[i] === c) {
           out[i * 4] = col[0]; out[i * 4 + 1] = col[1]; out[i * 4 + 2] = col[2]; out[i * 4 + 3] = 255;
         }
@@ -442,7 +447,7 @@ export const Kao = (function () {
       var kc = keys ? keys[c] : c; // 素材・向き・回転を決める鍵。ふつうはブロブの番号
       var r1 = hash2(kc, 11, seed), r2 = hash2(kc, 23, seed), r3 = hash2(kc, 37, seed), r4 = hash2(kc, 41, seed);
       var ph0 = photos[apart ? apart[c] : p.assign === 'layer' ? L % np : Math.floor(r1 * np) % np];
-      var ph: Source = 'pick' in ph0 ? ph0.pick(bw / bh) : ph0; // content-aware sources hand back a version carved for this blob's proportions
+      var ph: Source = 'pick' in ph0 ? ph0.pick(camo.aspect ? camo.aspect[c] : bw / bh) : ph0; // content-aware sources hand back a version carved for this blob's proportions
       if (ph.shape && p.method && p.method !== 'radial') {
         var opt: FitOptions = { method: p.method, ang: (r2 - 0.5) * 2 * Math.PI * p.rot, flip: r3 < 0.5 ? -1 : 1, spin: (r3 - 0.5) * 2, dist: dist, tint: tint, squeeze: sq, mix: p.mix === undefined ? 0.5 : p.mix, imp: p.imp || 0, smooth: !!p.smooth, trim: !!p.trim };
         if (p.method === 'elastic') renderElastic(out, camo, c, ph, col, opt); else if (p.method === 'carve') renderCarve(out, camo, c, ph, col, opt); else renderDisc(out, camo, c, ph, col, opt);
@@ -845,7 +850,17 @@ export const Kao = (function () {
   function blobMap(camo: Camo, c: number, method: string, mix: number): BlobMap { // one cached set per method; a new mix value replaces it
     var e = camo.maps[method]; if (!e || e.mix !== mix) e = camo.maps[method] = { mix: mix, list: [] };
     var L = e.list;
-    if (!L[c]) { var g = blobGrid(camo, c, 44), m = discMap(g, method, mix); L[c] = { u: m.u, v: m.v, g: g }; }
+    if (!L[c]) {
+      var g = blobGrid(camo, c, 44), m = discMap(g, method, mix), mu = m.u, mv = m.v;
+      if (camo.steady) { // 円の上の向きと、ブロブの中での実際の方角との ずれを、ブロブ全体でならして消す
+        var gw = g.gw, nn = gw * g.gh, sn = 0, cs = 0, i;
+        for (i = 0; i < nn; i++) if (g.ins[i]) { var px = i % gw - g.ci, py = ((i / gw) | 0) - g.cj; sn += px * mv[i] - py * mu[i]; cs += px * mu[i] + py * mv[i]; }
+        var ro = Math.atan2(sn, cs), cr = Math.cos(ro), sr = Math.sin(ro), nu = new Float32Array(nn), nv = new Float32Array(nn);
+        for (i = 0; i < nn; i++) { nu[i] = mu[i] * cr + mv[i] * sr; nv[i] = mv[i] * cr - mu[i] * sr; }
+        mu = nu; mv = nv;
+      }
+      L[c] = { u: mu, v: mv, g: g };
+    }
     return L[c];
   }
   function sourceGrid(ph: Source, G: number, trim?: boolean): Grid {
@@ -956,7 +971,7 @@ export const Kao = (function () {
   function renderDisc(out: Pixels, camo: Camo, c: number, ph: Source, col: RGB, o: FitOptions) {
     var M = blobMap(camo, c, o.method, o.mix), g = M.g, inv = sourceInv(ph, o.method, o.mix, o.imp, o.trim), cm = camo.comps, W = camo.W, ids = camo.ids;
     flat(out, camo, c, col); if (g.n < 1 || inv.empty) return;
-    var gw = g.gw, gh = g.gh, N = inv.N, S = (N - 1) / 2, pw = ph.w, phh = ph.h, pd = ph.data, ca = Math.cos(o.ang), sa = Math.sin(o.ang);
+    var gw = g.gw, gh = g.gh, N = inv.N, S = (N - 1) / 2, pw = ph.w, phh = ph.h, pd = ph.data, ca = Math.cos(o.ang), sa = Math.sin(o.ang), ez = camo.ease;
     for (var y = cm.y0[c]; y <= cm.y1[c]; y++) for (var x = cm.x0[c], i = y * W + x; x <= cm.x1[c]; x++, i++) {
       if (ids[i] !== c) continue;
       var gi = (x - g.bx) / g.cs + 0.5, gj = (y - g.by) / g.cs + 0.5, i0 = gi | 0, j0 = gj | 0;
@@ -964,6 +979,10 @@ export const Kao = (function () {
       var fx = gi - i0, fy = gj - j0, k = j0 * gw + i0;
       var qx = (M.u[k] * (1 - fx) + M.u[k + 1] * fx) * (1 - fy) + (M.u[k + gw] * (1 - fx) + M.u[k + gw + 1] * fx) * fy;
       var qy = (M.v[k] * (1 - fx) + M.v[k + 1] * fx) * (1 - fy) + (M.v[k + gw] * (1 - fx) + M.v[k + gw + 1] * fx) * fy;
+      if (ez) { // 前のコマで読んだ位置へ寄せる
+        if (ez.ok[i]) { qx = ez.pu[i] + (qx - ez.pu[i]) * ez.a; qy = ez.pv[i] + (qy - ez.pv[i]) * ez.a; }
+        ez.nu[i] = qx; ez.nv[i] = qy; ez.set[i] = 1;
+      }
       qx *= o.flip;
       var rad = Math.sqrt(qx * qx + qy * qy), sw = rad < 1 ? 1 - rad : 0, tw = o.dist * 2.4 * sw * sw * o.spin, ct = Math.cos(tw), st = Math.sin(tw);
       var rx = qx * (ca * ct - sa * st) - qy * (sa * ct + ca * st), ry = qx * (sa * ct + ca * st) + qy * (ca * ct - sa * st);
@@ -1144,5 +1163,5 @@ export const Kao = (function () {
       paint(out, i * 4, d, s2, col, o.tint);
     }
   }
-  return { buildCamo: buildCamo, renderCamo: renderCamo, carve: carve, assignSources: assignSources, prepareSource: prepareSource, hash2: hash2, vnoise: vnoise, fbm: fbm, THR: THR, fromRef: fromRef };
+  return { buildCamo: buildCamo, renderCamo: renderCamo, carve: carve, assignSources: assignSources, prepareSource: prepareSource, hash2: hash2, vnoise: vnoise, fbm: fbm, THR: THR, fromRef: fromRef, fromKeys: fromKeys };
 })();

@@ -28,6 +28,25 @@ export interface Job {
   tileRef?: [number, number];
   /** ブロブごとの位相の地図も返す（絵を動かすときの「呼吸」用） */
   phase?: boolean;
+  /** ラバランプの1コマ。kind が one のときだけ効く */
+  lava?: Lava;
+}
+/** ラバランプの1コマ。theta は1周の中の位置（0〜2π）、amount は溶け具合（0〜1）。コマは順に頼む。first は1コマ目（前のコマとのつながりを切る） */
+export interface Lava {
+  theta: number; amount: number; first: boolean;
+  /** 侵食の早さ。絵が1コマに広がる距離を、ブロブの大きさを 1 として */
+  grow: number;
+  /** 1コマの時間（秒）。絵を読む位置をならす強さを決める */
+  dt: number;
+  /**
+   * 何をするコマか。
+   *   f：鍵を前向きにたどる（0 コマ目から順に）。絵は描かない。コマごとの鍵を覚える
+   *   b：鍵を後ろ向きにたどる（0 コマ目、最後のコマ、その前…の順に）。絵は描かない。コマごとの鍵を覚える
+   *   draw：覚えた鍵で絵を描く
+   */
+  pass: 'f' | 'b' | 'draw';
+  /** 何コマ目か（0 から count-1）と、1周のコマ数 */
+  index: number; count: number;
 }
 /** ブロブごとに決めた位相 φ の、cos と sin を並べた粗い地図（0〜255。128 が 0）。ぼかして使う */
 export interface PhaseMap { data: Uint8Array<ArrayBuffer>; w: number; h: number }
@@ -210,7 +229,162 @@ function renderOriginals(job: Job, p: Params, src: Picker[]): Result {
   return { data: d, W, H, blobs: cm.count };
 }
 
+/**
+ * ラバランプ用に、柄を時間で変える。θ が1周すると、ちょうど同じ柄に戻る。
+ * 標準の柄は、しきい値で切るノイズそのものを「止まったノイズ」と「cos・sin で回るノイズ2枚」のまぜ合わせにする。ブロブが生まれ、くっつき、ちぎれる。
+ * ほかの柄は、中のノイズに手が届かない。柄を読む位置を大きくずらす。形が流れて、ちぎれて、また戻る。
+ */
+function lavaParams(p: Params, lv: Lava): Params {
+  const m = Math.min(1, Math.max(0, lv.amount)), c = Math.cos(lv.theta), s = Math.sin(lv.theta), seed = p.seed | 0;
+  if (!p.layerAt) {
+    const f = 1 / p.size, norm = Math.hypot(1 - m, m), T = Kao.THR; // まぜると山が低くなるので、高さを戻す
+    return { ...p, layerAt: (_nx, _ny, wx, wy) => {
+      let L = 0;
+      for (let k = 1; k < 4; k++) {
+        const x = wx * f / 1.45 + k * 31.7, y = wy * f + k * 17.3;
+        const v = 0.5 + ((1 - m) * (Kao.fbm(x, y, seed + k) - 0.5) + m * ((Kao.fbm(x, y, seed + k + 1000) - 0.5) * c + (Kao.fbm(x, y, seed + k + 2000) - 0.5) * s)) / norm;
+        if (v > T[k]) L = k;
+      }
+      return L;
+    } };
+  }
+  const base = p.layerAt, g = 1 / (p.size * 3), A = m * p.size * 2;
+  return { ...p, layerAt: (nx, ny, wx, wy) => {
+    const x = nx * g, y = ny * g;
+    const dx = A * ((Kao.vnoise(x, y, seed + 900) - 0.5) * c + (Kao.vnoise(x + 31, y + 17, seed + 901) - 0.5) * s);
+    const dy = A * ((Kao.vnoise(x + 11, y + 53, seed + 902) - 0.5) * c + (Kao.vnoise(x + 71, y + 29, seed + 903) - 0.5) * s);
+    return base(nx + dx, ny + dy, wx + dx, wy + dy);
+  } };
+}
+/** 前のコマの状態。次のコマへ、ブロブの鍵（＝同じ素材・同じ向き）と、絵が入っている範囲を引き継ぐ */
+/**
+ * コマごとの、ブロブの鍵。前向きにたどったもの F と、後ろ向きにたどったもの B。
+ * 鍵は前のコマから引き継ぐので、1周たどっても 0 コマ目の鍵には戻らない（顔が入れ替わったままになる）。そのままではループがつながらない。
+ * そこで、0 コマ目の鍵から前向きにたどった F と、同じ 0 コマ目の鍵から時間をさかのぼってたどった B を作る。
+ * F は1周の始めで、B は1周の終わりで、0 コマ目とつながる。ブロブごとに、途中のどこかで F から B へ乗り換える。
+ * 乗り換える時刻は顔（F の鍵）ごとにばらばらにする。乗り換えは、いつもの「消えて、広がり直す」動きになる。
+ * 同じコマは、何度作っても同じブロブ分け・同じ番号になる。だから番号で引ける。
+ */
+let lavaKeys: { F: (Int32Array | undefined)[]; B: (Int32Array | undefined)[] } = { F: [], B: [] };
+let lavaPrev: {
+  W: number; H: number;
+  /** 画素ごとの、そこに絵を出していたブロブの鍵。色だけ塗った所は -1 */
+  owner: Int32Array;
+  /** 鍵ごとの層。色の違うブロブへは引き継がない */
+  layerOf: Map<number, number>;
+  /** 鍵ごとの、素材の版を選んだときの縦横比 */
+  aspectOf: Map<number, number>;
+  /** 前のコマで、画素ごとに絵を読んだ位置。描いたコマのあとだけある */
+  uv: { u: Float32Array<ArrayBuffer>; v: Float32Array<ArrayBuffer>; set: Uint8Array } | null;
+} | null = null;
+/**
+ * ラバランプの1コマ。迷彩を作り直して、押し込み直す。
+ *
+ * 鍵の引き継ぎ：コマごとにブロブの番号は変わる。番号で素材を決めると、毎コマ別の顔になってちらつく。
+ * ブロブの中で、前のコマにいちばん広く絵を出していた鍵を引き継ぐ（同じ色のものだけ）。大きいブロブから先に選ぶ。
+ * 引き継げないブロブ（生まれた、ちぎれた小さいほう、くっついて取られた）は、場所から新しい鍵を作る。
+ *
+ * 侵食：くっついた瞬間、取り込まれた側の絵はすぐ消える（色だけになる）。取り込んだ側の絵は、そこへ少しずつ広がっていく。
+ * やり方は、ブロブを「前のコマで同じ鍵の絵が出ていた所」から、1コマに決まった画素数ずつ広げること。
+ * まだ届いていない所は、別のブロブとして色だけ塗る。絵を押し込む先は、届いた範囲だけ。範囲が広がるにつれて、絵も伸びていく。
+ * 生まれたばかりのブロブ、ちぎれて鍵が変わったブロブは、いちばん深い点から広がる。
+ * ふつうに輪郭が動くぶんは、1コマの広がりより小さいので、すぐ届く。
+ */
+function renderLava(job: Job, p0: Params, src: Picker[]): Result {
+  const { W, H } = job, lv = job.lava!, p = lavaParams(p0, lv), M = Math.max(W, H), n = W * H;
+  const base = Kao.buildCamo(W, H, p), bm = base.comps, bids = base.ids;
+  const prev = lv.first || !lavaPrev || lavaPrev.W !== W || lavaPrev.H !== H ? null : lavaPrev;
+  const dry = lv.pass !== 'draw', seed = p.seed | 0;
+  if (lv.first && lv.pass === 'f') lavaKeys = { F: [], B: [] };
+  const kf = lavaKeys.F[lv.index], kb = lavaKeys.B[lv.index], given = !dry && !!kf && !!kb && kf.length === bm.count && kb.length === bm.count;
+  const keys = new Int32Array(bm.count).fill(-1), used = new Set<number>(), q = Math.max(4, p.size * M * 0.6);
+  if (given) for (let c = 0; c < bm.count; c++) { // 覚えた鍵を使う。顔ごとに決めた時刻までは F、そのあとは B
+    const t = 1 + Math.floor(Kao.hash2(kf![c], 77, seed) * (lv.count - 1));
+    keys[c] = lv.index < t ? kf![c] : kb![c];
+  }
+  const order = Array.from({ length: bm.count }, (_, c) => c).sort((a, b) => bm.area[b] - bm.area[a]); // 大きいブロブから先に鍵を取る
+  if (prev && !given) {
+    // ブロブごとに、前のコマの絵がどの鍵でどれだけ重なっているか数える。同じ組が続くあいだは、まとめて足す
+    const votes: (Map<number, number> | undefined)[] = new Array(bm.count), po = prev.owner;
+    let lc = -1, lk = -1, run = 0;
+    const flush = (): void => { if (run && lk >= 0) { const m = votes[lc] || (votes[lc] = new Map()); m.set(lk, (m.get(lk) || 0) + run); } run = 0; };
+    for (let i = 0; i < n; i++) { const c = bids[i], k = po[i]; if (c !== lc || k !== lk) { flush(); lc = c; lk = k; } run++; }
+    flush();
+    for (const c of order) {
+      const m = votes[c]; if (!m) continue;
+      let best = -1, bn = 0;
+      for (const [k, v] of m) if (v > bn && !used.has(k) && prev.layerOf.get(k) === bm.layer[c]) { best = k; bn = v; }
+      if (best >= 0) { keys[c] = best; used.add(best); }
+    }
+  }
+  for (const c of order) if (keys[c] < 0) {
+    const x = Math.min(W - 1, Math.max(0, Math.round(bm.cx[c]))), y = Math.min(H - 1, Math.max(0, Math.round(bm.cy[c])));
+    let k = (Math.imul(Math.floor(x / q), 73856093) ^ Math.imul(Math.floor(y / q), 19349663) ^ Math.imul(bm.layer[c] + 1, 83492791)) & 0x7fffffff;
+    while (used.has(k)) k = (k + 1) & 0x7fffffff;
+    used.add(k); keys[c] = k;
+  }
+  let cam = base, camKeys = keys;
+  const owner = new Int32Array(n);
+  if (!prev) { for (let i = 0; i < n; i++) owner[i] = keys[bids[i]]; } // 最初のコマは、全部に絵を入れる
+  else {
+    // 絵が届いている所：前のコマで同じ鍵の絵が出ていた所から、同じブロブの中を step 画素ぶん広げる
+    const step = Math.max(1, Math.round(p.size * M * lv.grow)), reach = new Int16Array(n).fill(-1), queue = new Int32Array(n), po = prev.owner;
+    const seeded = new Uint8Array(bm.count);
+    let head = 0, tail = 0;
+    for (let i = 0; i < n; i++) { const c = bids[i]; if (po[i] === keys[c]) { reach[i] = 0; queue[tail++] = i; seeded[c] = 1; } }
+    for (let c = 0; c < bm.count; c++) if (!seeded[c] && bm.area[c]) { // 前の絵がどこにもない。いちばん深い点から広げる
+      const i = Math.min(H - 1, Math.max(0, Math.round(bm.cy[c]))) * W + Math.min(W - 1, Math.max(0, Math.round(bm.cx[c])));
+      if (bids[i] === c) { reach[i] = 0; queue[tail++] = i; }
+    }
+    while (head < tail) {
+      const i = queue[head++], d = reach[i]; if (d >= step) continue;
+      const c = bids[i], x = i % W;
+      if (x > 0 && reach[i - 1] < 0 && bids[i - 1] === c) { reach[i - 1] = d + 1; queue[tail++] = i - 1; }
+      if (x < W - 1 && reach[i + 1] < 0 && bids[i + 1] === c) { reach[i + 1] = d + 1; queue[tail++] = i + 1; }
+      if (i >= W && reach[i - W] < 0 && bids[i - W] === c) { reach[i - W] = d + 1; queue[tail++] = i - W; }
+      if (i < n - W && reach[i + W] < 0 && bids[i + W] === c) { reach[i + W] = d + 1; queue[tail++] = i + W; }
+    }
+    // 届いた所と、まだの所を、別のブロブにする
+    const key = new Int32Array(n), layer = new Int32Array(n); let pending = 0;
+    for (let i = 0; i < n; i++) { const c = bids[i]; layer[i] = bm.layer[c]; if (reach[i] >= 0) key[i] = c; else { key[i] = bm.count + c; pending++; } }
+    if (pending) {
+      cam = Kao.fromKeys(W, H, key, layer);
+      const cm = cam.comps, flat = new Uint8Array(cm.count); camKeys = new Int32Array(cm.count);
+      for (let c = 0; c < cm.count; c++) { // そのブロブの中の1点から、もとのブロブと、届いているかを引く
+        const i = Math.round(cm.cy[c]) * W + Math.round(cm.cx[c]), b = bids[i];
+        camKeys[c] = keys[b]; if (reach[i] < 0) flat[c] = 1;
+      }
+      cam.flat = flat;
+    }
+    for (let i = 0; i < n; i++) owner[i] = reach[i] >= 0 ? keys[bids[i]] : -1;
+  }
+  const layerOf = new Map<number, number>(); for (let c = 0; c < bm.count; c++) layerOf.set(keys[c], bm.layer[c]);
+  // 素材の版は、ブロブの縦横比で選ぶ。比が境目のあたりにあると、毎コマ版が入れ替わって絵が飛ぶ。大きく変わるまで、前の比のままにする
+  const cmA = cam.comps, aspect = new Float32Array(cmA.count), aspectOf = new Map<number, number>();
+  for (let c = 0; c < cmA.count; c++) {
+    let a = (cmA.x1[c] - cmA.x0[c] + 1) / (cmA.y1[c] - cmA.y0[c] + 1);
+    const a0 = prev ? prev.aspectOf.get(camKeys[c]) : undefined;
+    if (a0 && Math.abs(Math.log(a / a0)) < 0.5) a = a0;
+    aspect[c] = a; if (!(cam.flat && cam.flat[c])) aspectOf.set(camKeys[c], a);
+  }
+  if (lv.pass === 'f') lavaKeys.F[lv.index] = keys; else if (lv.pass === 'b') lavaKeys.B[lv.index] = keys;
+  if (dry) { lavaPrev = { W, H, owner, layerOf, aspectOf, uv: null }; return { data: new Uint8ClampedArray(4), W: 1, H: 1, blobs: bm.count }; } // 絵は返さない。1画素だけ
+  cam.keys = camKeys; cam.steady = true; cam.aspect = aspect;
+  // 絵を読む位置を、前のコマからなめらかにつなぐ。前のコマも同じ鍵の絵だった画素だけ
+  const ok = new Uint8Array(n), pu = prev && prev.uv ? prev.uv.u : new Float32Array(0), pv = prev && prev.uv ? prev.uv.v : new Float32Array(0);
+  if (prev && prev.uv) { const ps = prev.uv.set, po = prev.owner; for (let i = 0; i < n; i++) if (ps[i] && owner[i] >= 0 && po[i] === owner[i]) ok[i] = 1; }
+  const ease = { pu, pv, ok, nu: new Float32Array(n), nv: new Float32Array(n), set: new Uint8Array(n), a: 1 - Math.exp(-Math.max(0.001, lv.dt) / 0.12) };
+  cam.ease = ease;
+  const data = new Uint8ClampedArray(n * 4);
+  Kao.renderCamo(data, cam, src, job.colors as RGB[], p);
+  if (job.soft) softenEdges(data, W, H, cam);
+  if (job.edges) whiteEdges(data, cam.ids, W, 0, 0, W - 1, H - 1);
+  lavaPrev = { W, H, owner, layerOf, aspectOf, uv: { u: ease.nu, v: ease.nv, set: ease.set } };
+  return { data, W, H, blobs: bm.count };
+}
+
 export function run(job: Job): Result {
   const p = withLayer(job.p), src = pickers(job);
+  if (job.lava && job.kind === 'one') return renderLava(job, p, src);
   return job.kind === 'tile' ? renderTile(job, p, src) : job.kind === 'orig' ? renderOriginals(job, p, src) : renderOne(job, p, src);
 }

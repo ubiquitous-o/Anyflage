@@ -342,6 +342,7 @@ async function drawOnce(): Promise<void> {
     view.width = c.width; view.height = c.height; ctx.drawImage(c, 0, 0);
     drawn = true;
     motionPicture(); // 動かしているなら、新しい絵を渡す
+    void startLava(); // ラバランプなら、コマを描き直す
     if (resized) layoutView(); // 絵の大きさが変わったら、置き方を合わせ直す
     drawBackdrop(); // 柄や色が変わっていれば、枠の背景も描き直す
     const n = chosen().length;
@@ -395,6 +396,8 @@ function syncUi(): void {
   $('imp').disabled = !cmp && !['area', 'areaharm', 'blend'].includes(m);
   $('o-mamt').textContent = `${$('mamt').value}%`; $('o-mfine').textContent = `${$('mfine').value}升`; $('o-msec').textContent = `${$('msec').value}秒`;
   $('motion-box').hidden = !$('motion').checked;
+  $('o-mamt2').textContent = `${$('mamt2').value}%`; $('o-mlava').textContent = `${$('mlava').value}%`;
+  $('mamt2').disabled = !$('mkind2').value; $('mlava').disabled = $('mgrow').disabled = !$('lava').checked; $('o-mgrow').textContent = `毎秒 ブロブ${$('mgrow').value}個ぶん`; $('lava-note').hidden = !$('lava').checked;
   const [vw, vh] = dims(videoLong()); $('video-note').textContent = `動画の大きさ：${vw & ~1}×${vh & ~1} px・${VIDEO_FPS}fps・${$('msec').value}秒で1周。くり返し再生すると、継ぎ目なくつながる。`;
   syncMotion();
 }
@@ -497,21 +500,76 @@ window.addEventListener('resize', () => drawBackdrop());
 // ---- 動かす ----
 // できあがった絵を、ループする「ずらしの場」で毎フレームゆがめる（motion.ts）。絵は作り直さないので、設定を変えてもすぐ動きが変わる。
 // 動かし方の設定を変えても、絵は描き直さない。
-const VIDEO_FPS = 30, MOTION_IDS = ['motion', 'mkind', 'mamt', 'mfine', 'msec'];
+const VIDEO_FPS = 30, MOTION_IDS = ['motion', 'mkind', 'mamt', 'mfine', 'msec', 'mkind2', 'mamt2', 'lava', 'mlava', 'mgrow'];
 let motion: Motion | null = null, lastPhase: PhaseMap | null = null, motionRaf = 0;
 /** ふつうの絵（比較表示でも、切り抜きの一覧でもない）か。リピートと「呼吸」は、ふつうの絵のときだけ効く */
 const plain = (): boolean => !$('compare').value && !showSources;
 /** 動画の長辺。大きさが決まっている比率はそのまま。汎用の比率は 1920 */
 function videoLong(): number { return exactSize() ? exportLong() : 1920; }
 function motionOptions(tiles: number): MotionOptions {
-  return { kind: $('mkind').value as MotionKind, amount: +$('mamt').value / 100, fine: +$('mfine').value, tiles, wrap: plain() && $('repeat').checked, seed };
+  return { kind: $('mkind').value as MotionKind, amount: +$('mamt').value / 100, kind2: $('mkind2').value as MotionKind | '', amount2: +$('mamt2').value / 100, fine: +$('mfine').value, tiles, wrap: plain() && $('repeat').checked, seed };
 }
 /** いま画面にある絵を、動かす側に渡す */
 function motionPicture(): void {
   if (!$('motion').checked) return;
   try { motion ??= new Motion(mview); }
   catch (e) { $('motion').checked = false; $('motion-box').hidden = true; setStatus(e instanceof Error ? e.message : String(e)); return; }
-  motion.setPicture(view); motion.setPhase(plain() ? lastPhase : null);
+  motion.setPicture(view); motion.setNext(null); motion.setPhase(plain() ? lastPhase : null);
+}
+// ラバランプ。毎コマ迷彩を作り直すので、その場では動かせない。
+// 画面には、1周を毎秒 15 コマで先に描いておき、できたコマから順に出す。コマのあいだは、次のコマへ少しずつまぜて見せる。
+// 書き出しでは、毎秒 30 コマぶんを全部描く。
+// 画面用のコマは長辺 720 で描く。書き出しと同じブロブ分けになる大きさ（CUT_REF）で、枠の大きさで描くより速い。
+const LAVA_FPS = 15, LAVA_MAX = 120;
+/** 画面用のコマ数（1周ぶん） */
+const lavaCount = (): number => Math.max(12, Math.min(LAVA_MAX, Math.round(+$('msec').value * LAVA_FPS)));
+let lavaN = 0;
+let lavaFrames: (HTMLCanvasElement | undefined)[] = [], lavaGen = 0, lavaShown = -1;
+const lavaOn = (): boolean => $('motion').checked && $('lava').checked && plain() && !$('repeat').checked;
+/** 侵食の早さ。絵が1コマに広がる距離（ブロブの大きさを 1 として）。1周 n コマのとき。スライダーは「1秒にブロブ何個ぶん」 */
+const lavaGrow = (n: number): number => +$('mgrow').value * +$('msec').value / n;
+/** 本番の前に、本当に描いて捨てるコマ数。絵を読む位置のならしを、0 コマ目の前に効かせておくため。0.4 秒ぶん */
+const lavaLead = (n: number): number => Math.min(n - 1, Math.ceil(0.4 * n / +$('msec').value) + 1);
+/**
+ * ラバランプの1周ぶん（n コマ）を、順に描く。描けたコマは emit に渡す（0 から n-1 の順）。
+ *
+ * どのコマの絵も、その前のコマの続きでできている（どの顔がどこにいるか、絵がどこまで広がったか）。
+ * 顔の割り当ては、1周たどっても元に戻らない。そのまま描くと、1周の終わりと 0 コマ目で顔が違い、ループがつながらない。
+ * そこで、絵を描く前に「下ごしらえ」を2周回す。1周目は前向きに、2周目は後ろ向きに、顔の割り当てだけをたどる。
+ * 本番では、ブロブごとに途中で前向きの割り当てから後ろ向きの割り当てへ乗り換える。こうすると、終わりが必ず 0 コマ目につながる。
+ * stale が true を返したら、途中でやめる。note には、下ごしらえの進み具合が来る。
+ */
+async function lavaRun(W: number, H: number, mats: string[], p: Params, n: number, emit: (i: number, img: ImageData) => void | Promise<void>, note: (text: string) => void, stale: () => boolean = () => false): Promise<void> {
+  const lead = lavaLead(n);
+  const step = async (i: number, pass: 'f' | 'b' | 'draw', first: boolean): Promise<ImageData> => {
+    const job: Job = { kind: 'one', W, H, p: { ...p, layerAt: undefined }, colors: colors(p.pattern || 'blob') as number[][], mats, mat: matOptions(), soft: $('soft').checked, edges: $('edges').checked, reuse: false,
+      lava: { theta: Math.PI * 2 * i / n, amount: +$('mlava').value / 100, first, grow: lavaGrow(n), dt: +$('msec').value / n, pass, index: i, count: n } };
+    const r = await engine.render(job);
+    return new ImageData(r.data, r.W, r.H);
+  };
+  for (let i = 0; i < n; i++) { if (stale()) return; await step(i, 'f', i === 0); if (i % 5 === 0) note(`下ごしらえ 1/2（${i}/${n} コマ）`); }
+  for (let k = 0; k < n; k++) { if (stale()) return; await step((n - k) % n, 'b', k === 0); if (k % 5 === 0) note(`下ごしらえ 2/2（${k}/${n} コマ）`); } // 0、n-1、n-2、…、1 の順
+  for (let k = 0; k < lead; k++) { if (stale()) return; await step(n - lead + k, 'draw', k === 0); } // 0 コマ目の手前を描いて捨てる。絵の広がりと、読む位置のならしを効かせておく
+  for (let i = 0; i < n; i++) { if (stale()) return; await emit(i, await step(i, 'draw', false)); }
+}
+/** 画面用のコマを、最初から描き直す。途中で設定が変わったら、古いほうはやめる */
+async function startLava(): Promise<void> {
+  const gen = ++lavaGen, had = lavaFrames.length > 0;
+  lavaFrames = []; lavaShown = -1; $('lava-progress').textContent = '';
+  if (had && drawn && !showingBefore) motionPicture(); // コマを捨てた。止まった絵に戻す
+  if (!lavaOn() || !drawn || exporting) return;
+  try {
+    const src = await sources(), p = params(), [W, H] = dims(PREVIEW), N = lavaCount();
+    lavaN = N;
+    const stale = (): boolean => gen !== lavaGen || exporting;
+    $('lava-progress').textContent = 'ラバランプを描いている…';
+    await lavaRun(W, H, src, p, N, (i, img) => {
+      if (stale()) return;
+      const c = document.createElement('canvas'); c.width = W; c.height = H; c.getContext('2d')!.putImageData(img, 0, 0);
+      lavaFrames[i] = c;
+      $('lava-progress').textContent = i + 1 < N ? `ラバランプを描いている…（${i + 1}/${N} コマ）` : '';
+    }, (t) => { if (!stale()) $('lava-progress').textContent = `ラバランプを描いている…（${t}）`; }, stale);
+  } catch (e) { if (gen === lavaGen) setStatus(e instanceof Error ? e.message : String(e)); }
 }
 function motionFrame(now: number): void {
   motionRaf = 0;
@@ -519,7 +577,15 @@ function motionFrame(now: number): void {
   // 前の絵を見ているあいだと、書き出しのあいだは止める
   const show = !!motion?.ready && !showingBefore && !exporting && mview.width === view.width && mview.height === view.height;
   mview.hidden = !show;
-  if (show) motion!.draw(Math.PI * 2 * ((now / 1000 / +$('msec').value) % 1), motionOptions(plain() && $('repeat').checked && $('repeatgrid').checked ? 2 : 1));
+  const turn = (now / 1000 / +$('msec').value) % 1;
+  let blend = 0;
+  if (show && lavaFrames.length && lavaN) { // ラバランプ：いまの位置のコマを出し、次のコマへ少しずつまぜる。まだ描けていなければ、手前のコマで止める
+    const f = turn * lavaN; let k = Math.floor(f) % lavaN; const k2 = (k + 1) % lavaN, both = !!lavaFrames[k] && !!lavaFrames[k2];
+    if (both) blend = f - Math.floor(f); else while (k > 0 && !lavaFrames[k]) k--;
+    const id = both ? k : -2 - k;
+    if (lavaFrames[k] && id !== lavaShown) { motion!.setPicture(lavaFrames[k]!, view.width, view.height); motion!.setNext(both ? lavaFrames[k2]! : null); lavaShown = id; }
+  }
+  if (show) motion!.draw(Math.PI * 2 * turn, motionOptions(plain() && $('repeat').checked && $('repeatgrid').checked ? 2 : 1), blend);
   motionRaf = requestAnimationFrame(motionFrame);
 }
 function syncMotion(): void {
@@ -534,7 +600,7 @@ $('save-video').addEventListener('click', async () => {
   setStatus(''); setBusy('動画にする絵を描いている…');
   await paintNow();
   let m: Motion | null = null;
-  const done = (msg: string): void => { m?.dispose(); exporting = false; btn.disabled = false; $('save').disabled = false; btn.textContent = 'MP4を保存'; setBusy(null); setStatus(msg); if (wanted) void draw(); };
+  const done = (msg: string): void => { m?.dispose(); exporting = false; btn.disabled = false; $('save').disabled = false; btn.textContent = 'MP4を保存'; setBusy(null); setStatus(msg); if (wanted) void draw(); else void startLava(); };
   try {
     if (typeof VideoEncoder === 'undefined') throw new Error('このブラウザでは動画を書き出せない（WebCodecs が使えない）。');
     const mb = await import('mediabunny');
@@ -548,12 +614,15 @@ $('save-video').addEventListener('click', async () => {
     const src = new mb.CanvasSource(cv, { codec: 'avc', bitrate: mb.QUALITY_HIGH });
     out.addVideoTrack(src, { frameRate: VIDEO_FPS });
     await out.start();
-    const o = motionOptions(1);
-    for (let i = 0; i < N; i++) { // i = N は i = 0 と同じ絵。入れない。最後のコマの次が最初のコマにつながる
-      m.draw(Math.PI * 2 * i / N, o);
+    const o = motionOptions(1), lava = lavaOn(), mats = lava ? await sources() : [], p = params();
+    const fc = document.createElement('canvas'); fc.width = still.width; fc.height = still.height;
+    const mm = m, add = async (i: number): Promise<void> => { // i = N は i = 0 と同じ絵。入れない。最後のコマの次が最初のコマにつながる
+      mm.draw(Math.PI * 2 * i / N, o);
       await src.add(i / VIDEO_FPS, 1 / VIDEO_FPS);
-      if (i % 5 === 0) { setBusy(`動画にしている…（${i}/${N} コマ）`); await new Promise((r) => setTimeout(r, 0)); }
-    }
+      if (lava || i % 5 === 0) { setBusy(`動画にしている…（${i}/${N} コマ）`); await new Promise((r) => setTimeout(r, 0)); }
+    };
+    if (lava) await lavaRun(still.width, still.height, mats, p, N, async (i, img) => { fc.getContext('2d')!.putImageData(img, 0, 0); mm.setPicture(fc, W, H); await add(i); }, (t) => setBusy(`動画にしている…（${t}）`)); // ラバランプは、コマごとに絵を作り直す
+    else for (let i = 0; i < N; i++) await add(i);
     setBusy('ファイルにしている…');
     await out.finalize();
     if (!target.buffer) throw new Error('動画を作れなかった。');
@@ -564,7 +633,7 @@ $('save-video').addEventListener('click', async () => {
 });
 
 // ---- URL との行き来 ----
-const FIELDS = [...SLIDERS, 'size', 'method', 'compare', 'assign', 'ratio', 'ow', 'oh', 'palette', 'pattern', 'split', 'mkind', 'mamt', 'mfine', 'msec'];
+const FIELDS = [...SLIDERS, 'size', 'method', 'compare', 'assign', 'ratio', 'ow', 'oh', 'palette', 'pattern', 'split', 'mkind', 'mamt', 'mfine', 'msec', 'mkind2', 'mamt2', 'mlava', 'mgrow'];
 function writeUrl(): void {
   const q = new URLSearchParams();
   q.set('groups', [...picked].join(','));
@@ -583,7 +652,7 @@ function writeUrl(): void {
 }
 /** 最初の値を覚える。applyQuery が「指定のない項目は最初の値に戻す」ために使う。起動時に1回だけ */
 /** 入・切のもの。最初の状態（index.html の checked）を覚えておき、URL には違うものだけ書く */
-const CHECKS = ['fitblob', 'smooth', 'soft', 'trim', 'soften', 'edges', 'repeat', 'motion'];
+const CHECKS = ['fitblob', 'smooth', 'soft', 'trim', 'soften', 'edges', 'repeat', 'motion', 'lava'];
 function rememberDefaults(): void { for (const id of FIELDS) $(id).dataset.initial = $(id).value; for (const id of CHECKS) $(id).dataset.initial = $(id).checked ? '1' : '0'; }
 /** 設定をまるごと、この問い合わせ文字列の状態にする。指定のない項目は最初の値に戻す */
 function applyQuery(text: string): void {
@@ -647,8 +716,8 @@ window.addEventListener('keydown', (ev) => {
 const QUIET = ['ownname', 'own', 'ownkind', 'ow', 'oh', 'size', 'size-jog', 'showsrc', 'lang'];
 const isSlider = (t: EventTarget | null): boolean => t instanceof HTMLInputElement && t.type === 'range';
 // 動かし方の設定は、絵を描き直さない。動きだけ変える
-$('sheet').addEventListener('input', (ev) => { if (MOTION_IDS.includes((ev.target as HTMLElement).id)) { ev.stopImmediatePropagation(); syncUi(); if (!isSlider(ev.target)) writeUrl(); } });
-$('sheet').addEventListener('change', (ev) => { if (MOTION_IDS.includes((ev.target as HTMLElement).id)) { ev.stopImmediatePropagation(); if (isSlider(ev.target)) writeUrl(); } });
+$('sheet').addEventListener('input', (ev) => { const id = (ev.target as HTMLElement).id; if (MOTION_IDS.includes(id)) { ev.stopImmediatePropagation(); syncUi(); if (!isSlider(ev.target)) { writeUrl(); if (id === 'lava' || id === 'motion') void startLava(); } } });
+$('sheet').addEventListener('change', (ev) => { const id = (ev.target as HTMLElement).id; if (MOTION_IDS.includes(id)) { ev.stopImmediatePropagation(); if (isSlider(ev.target)) { writeUrl(); if (id === 'mlava' || id === 'mgrow' || (id === 'msec' && $('lava').checked)) void startLava(); } } });
 $('sheet').addEventListener('input', (ev) => { if (QUIET.includes((ev.target as HTMLElement).id)) return; syncUi(); if ((ev.target as HTMLElement).closest('#pal-box')) return; if (!isSlider(ev.target)) void draw(); });
 $('sheet').addEventListener('change', (ev) => { if (isSlider(ev.target) && !QUIET.includes((ev.target as HTMLElement).id)) void draw(); });
 for (const id of ['ow', 'oh']) $(id).addEventListener('change', () => { $(id).value = String(clampPx($(id).value)); syncUi(); void draw(); }); // 数字は打ち終わってから描き直す

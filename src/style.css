@@ -82,7 +82,7 @@ button:disabled { opacity: 0.45; cursor: default; }
 .stepper { display: flex; align-items: center; gap: 6px; margin-top: 4px; font-size: 12px; color: var(--dim); }
 .stepper button { width: 36px; flex: none; padding: 6px 0; }
 .stepper input { flex: 1; min-width: 0; padding: 6px 8px; background: var(--panel); color: var(--ink); border: 1px solid var(--line); border-radius: 4px; font: inherit; font-variant-numeric: tabular-nums; }
-.note[hidden] { display: none; }
+.note[hidden], .switch[hidden] { display: none; }
 .note.warn { color: var(--accent); }
 
 /* 自分の配色：色を1つずつ選ぶ */

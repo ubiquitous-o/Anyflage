@@ -9,6 +9,10 @@ import type { PhaseMap } from './render.ts';
 export type MotionKind = 'sway' | 'flow' | 'breathe' | 'wave' | 'double';
 export interface MotionOptions {
   kind: MotionKind;
+  /** 重ねる、もうひとつの動かし方。'' なら重ねない */
+  kind2?: MotionKind | '';
+  /** 重ねる動きの大きさ */
+  amount2?: number;
   /** 動きの大きさ。0〜1。1 で、ノイズの升目の3割ぶん動く */
   amount: number;
   /** 動きの細かさ。絵の長辺に入るノイズの升目の数 */
@@ -27,10 +31,11 @@ void main() { vUv = vec2(aPos.x * 0.5 + 0.5, 0.5 - aPos.y * 0.5); gl_Position = 
 const FRAG = `#version 300 es
 precision highp float;
 precision highp int;
-uniform sampler2D uTex, uPhase;
-uniform vec2 uCells, uTiles, uAmp, uPhaseTexel;
+uniform sampler2D uTex, uPhase, uNext;
+uniform float uBlend;
+uniform vec2 uCells, uTiles, uAmp, uPhaseTexel, uMix;
 uniform float uTheta;
-uniform int uKind;
+uniform int uKind, uKind2;
 uniform uint uSeed;
 uniform bool uWrap, uHasPhase;
 in vec2 vUv; out vec4 o;
@@ -60,14 +65,14 @@ vec2 sway(vec2 p, float th, float k) {
   return d;
 }
 // 流れ：ループするノイズを「流れの関数」と見て、その等高線に沿って動かす。湧き出しがないので、面積が保たれる
-float psi(vec2 p, float th) {
+float psi(vec2 p, float th, float k) {
   float s = 0.0;
-  for (int h = 1; h <= 3; h++) { float fh = float(h); s += (fb(p, 100.0 + fh * 10.0) * cos(fh * th) + fb(p, 101.0 + fh * 10.0) * sin(fh * th)) / fh; }
+  for (int h = 1; h <= 3; h++) { float fh = float(h); s += (fb(p, k + 100.0 + fh * 10.0) * cos(fh * th) + fb(p, k + 101.0 + fh * 10.0) * sin(fh * th)) / fh; }
   return s;
 }
-vec2 flow(vec2 p, float th) {
+vec2 flow(vec2 p, float th, float k) {
   const float e = 0.06;
-  return vec2(psi(p + vec2(0, e), th) - psi(p - vec2(0, e), th), psi(p - vec2(e, 0), th) - psi(p + vec2(e, 0), th)) / (2.0 * e) * 0.45;
+  return vec2(psi(p + vec2(0, e), th, k) - psi(p - vec2(0, e), th, k), psi(p - vec2(e, 0), th, k) - psi(p + vec2(e, 0), th, k)) / (2.0 * e) * 0.45;
 }
 // 呼吸：ブロブごとに位相をずらした山と谷を作り、その坂に沿って動かす。隣がしぼむぶん、自分がふくらむ
 float swell(vec2 t, float th) { vec2 cs = texture(uPhase, t).rg * 2.0 - 1.0; return cs.x * cos(th) - cs.y * sin(th); }
@@ -76,24 +81,31 @@ vec2 breathe(vec2 t, float th) {
   return vec2(swell(t + ex, th) - swell(t - ex, th), swell(t + ey, th) - swell(t - ey, th)) * 2.4;
 }
 // 波：一方向へ渡る。進む向きの押し引きと、横の揺れを重ねる。波の数は整数にして、絵の端でつながるようにする
-vec2 wave(vec2 p, vec2 t, float th) {
-  vec2 kv = max(vec2(1), floor(uCells * vec2(0.34, 0.2) + 0.5)), n = normalize(kv / uCells);
-  float ph = TAU * dot(t, kv) + 2.2 * fb(p, 200.0) - th;
+vec2 wave(vec2 p, vec2 t, float th, float k) {
+  vec2 kv = max(vec2(1), floor(uCells * (k > 0.0 ? vec2(-0.2, 0.34) : vec2(0.34, 0.2)) + 0.5)), n = normalize(kv / uCells); // 重ねるほうは、別の向きへ渡る
+  float ph = TAU * dot(t, kv) + 2.2 * fb(p, k + 200.0) - th;
   return n * cos(ph) * 0.6 + vec2(-n.y, n.x) * sin(ph + 1.0) * 0.8;
+}
+// k は乱数の種のずらし。重ねるほうには別の値を渡して、同じ動かし方でも別の動きにする
+vec2 field(int kind, vec2 p, vec2 t, float th, float k) {
+  if (kind == 1) return flow(p, th, k);
+  if (kind == 2 && uHasPhase) return breathe(t, th + k);
+  if (kind == 3) return wave(p, t, th, k);
+  if (kind == 4) { vec2 d1 = sway(p, th, k); return 0.6 * d1 + 0.8 * sway(p + 1.2 * d1, th + 1.7, k + 50.0); } // ずらした先で、もう一度ずらす
+  return sway(p, th, k);
 }
 
 void main() {
-  vec2 t = vUv * uTiles, p = t * uCells, d;
-  if (uKind == 1) d = flow(p, uTheta);
-  else if (uKind == 2 && uHasPhase) d = breathe(t, uTheta);
-  else if (uKind == 3) d = wave(p, t, uTheta);
-  else if (uKind == 4) { vec2 d1 = sway(p, uTheta, 0.0); d = 0.6 * d1 + 0.8 * sway(p + 1.2 * d1, uTheta + 1.7, 50.0); } // ずらした先で、もう一度ずらす
-  else d = sway(p, uTheta, 0.0);
+  vec2 t = vUv * uTiles, p = t * uCells, d = field(uKind, p, t, uTheta, 0.0) * uMix.x;
+  if (uKind2 >= 0) d += field(uKind2, p, t, uTheta, 300.0) * uMix.y; // 動きは足し算で重なる
   if (!uWrap) { // 端の外は読めない。端に近いほど動きを弱める
-    vec2 e = min(vUv, 1.0 - vUv) / (abs(uAmp) * 2.5 + 1e-6);
+    vec2 e = min(vUv, 1.0 - vUv) / (abs(uAmp) * (uMix.x + uMix.y) * 2.5 + 1e-6);
     d *= smoothstep(0.0, 1.0, min(e.x, e.y));
   }
-  o = vec4(texture(uTex, vUv + d * uAmp).rgb, 1.0);
+  vec2 uv = vUv + d * uAmp;
+  vec3 c = texture(uTex, uv).rgb;
+  if (uBlend > 0.0) c = mix(c, texture(uNext, uv).rgb, uBlend); // コマ送りの絵は、次のコマへ少しずつまぜて、なめらかに見せる
+  o = vec4(c, 1.0);
 }`;
 
 const KINDS: MotionKind[] = ['sway', 'flow', 'breathe', 'wave', 'double'];
@@ -113,7 +125,7 @@ function blurPhase(m: PhaseMap, wrap: boolean): Uint8Array {
 export class Motion {
   private gl: WebGL2RenderingContext;
   private prog: WebGLProgram;
-  private tex: WebGLTexture; private phase: WebGLTexture;
+  private tex: WebGLTexture; private phase: WebGLTexture; private next: WebGLTexture; private hasNext = false;
   private loc: Record<string, WebGLUniformLocation | null> = {};
   private hasPhase = false; private phaseSize: [number, number] = [1, 1];
   private wrapNow: boolean | null = null; private phaseSrc: PhaseMap | null = null; private phaseWrap: boolean | null = null;
@@ -132,11 +144,11 @@ export class Motion {
     const prog = gl.createProgram()!; gl.attachShader(prog, sh(gl.VERTEX_SHADER, VERT)); gl.attachShader(prog, sh(gl.FRAGMENT_SHADER, FRAG)); gl.linkProgram(prog);
     if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) throw new Error(`動かす準備に失敗した：${gl.getProgramInfoLog(prog)}`);
     this.prog = prog; gl.useProgram(prog);
-    for (const n of ['uTex', 'uPhase', 'uCells', 'uTiles', 'uAmp', 'uPhaseTexel', 'uTheta', 'uKind', 'uSeed', 'uWrap', 'uHasPhase']) this.loc[n] = gl.getUniformLocation(prog, n);
+    for (const n of ['uNext', 'uBlend', 'uTex', 'uPhase', 'uCells', 'uTiles', 'uAmp', 'uPhaseTexel', 'uMix', 'uTheta', 'uKind', 'uKind2', 'uSeed', 'uWrap', 'uHasPhase']) this.loc[n] = gl.getUniformLocation(prog, n);
     const buf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, buf); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
     const a = gl.getAttribLocation(prog, 'aPos'); gl.enableVertexAttribArray(a); gl.vertexAttribPointer(a, 2, gl.FLOAT, false, 0, 0);
-    this.tex = gl.createTexture()!; this.phase = gl.createTexture()!;
-    gl.uniform1i(this.loc.uTex, 0); gl.uniform1i(this.loc.uPhase, 1);
+    this.tex = gl.createTexture()!; this.phase = gl.createTexture()!; this.next = gl.createTexture()!;
+    gl.uniform1i(this.loc.uTex, 0); gl.uniform1i(this.loc.uPhase, 1); gl.uniform1i(this.loc.uNext, 2);
     gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
   }
 
@@ -153,14 +165,24 @@ export class Motion {
     this.wrapNow = null; this.ready = true;
   }
 
+  /** 次のコマの絵（コマ送りの絵を、あいだをまぜてなめらかに見せる用）。null でやめる */
+  setNext(src: HTMLCanvasElement | null): void {
+    this.hasNext = !!src; if (!src) return;
+    const gl = this.gl;
+    gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, this.next);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, src);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  }
+
   /** ブロブごとの位相の地図（「呼吸」用）。null なら「呼吸」は「ゆらぎ」で代える */
   setPhase(m: PhaseMap | null): void { this.phaseSrc = m; this.phaseWrap = null; this.hasPhase = !!m; }
 
   /** 使い終わったら呼ぶ。ブラウザが持てる描画の場の数には限りがある */
   dispose(): void { this.gl.getExtension('WEBGL_lose_context')?.loseContext(); this.ready = false; }
 
-  /** θ（0〜2π で1周）のときの絵を描く */
-  draw(theta: number, o: MotionOptions): void {
+  /** θ（0〜2π で1周）のときの絵を描く。blend は、次のコマの絵をまぜる割合（0〜1） */
+  draw(theta: number, o: MotionOptions, blend = 0): void {
     if (!this.ready) return;
     const gl = this.gl, W = this.canvas.width, H = this.canvas.height;
     if (this.wrapNow !== o.wrap) { // 端をまたいで読むかどうか
@@ -179,12 +201,15 @@ export class Motion {
     }
     const tiles = Math.max(1, o.tiles), tw = W / tiles, th = H / tiles, long = Math.max(tw, th);
     const cx = Math.max(1, Math.round(o.fine * tw / long)), cy = Math.max(1, Math.round(o.fine * th / long));
-    const amp = o.amount * 0.3 * long / o.fine; // 画素。升目ひとつの3割まで。これより大きいと絵が折り重なる
+    const amp = 0.3 * long / o.fine; // 画素。大きさ 100% で、升目ひとつの3割。これより大きいと絵が折り重なる
+    const k2 = o.kind2 ? KINDS.indexOf(o.kind2) : -1;
+    gl.uniform2f(this.loc.uMix, o.amount, k2 >= 0 ? o.amount2 || 0 : 0); gl.uniform1i(this.loc.uKind2, k2);
     gl.viewport(0, 0, W, H);
     gl.uniform2f(this.loc.uCells, cx, cy); gl.uniform2f(this.loc.uTiles, tiles, tiles); gl.uniform2f(this.loc.uAmp, amp / W, amp / H);
     gl.uniform2f(this.loc.uPhaseTexel, 1 / this.phaseSize[0], 1 / this.phaseSize[1]);
     gl.uniform1f(this.loc.uTheta, theta); gl.uniform1i(this.loc.uKind, Math.max(0, KINDS.indexOf(o.kind)));
     gl.uniform1ui(this.loc.uSeed, o.seed >>> 0); gl.uniform1i(this.loc.uWrap, o.wrap ? 1 : 0); gl.uniform1i(this.loc.uHasPhase, this.hasPhase ? 1 : 0);
+    gl.uniform1f(this.loc.uBlend, this.hasNext ? Math.min(1, Math.max(0, blend)) : 0);
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
   }
 }

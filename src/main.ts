@@ -55,7 +55,9 @@ const view = $<HTMLCanvasElement>('view'), ctx = view.getContext('2d')!;
 let all: Sample[] = [], groups: string[] = [];
 const picked = new Set<string>(), sent = new Set<string>(); // sent：描く Worker に渡した素材
 let ownBusy = false, exporting = false;
-let seed = 48213, shuf = 0, showSources = false, lastBlobs = 0;
+/** 何も指定がないときのシードと、画像の並びのかき混ぜ方 */
+const SEED0 = 18455, SHUF0 = 75097;
+let seed = SEED0, shuf = SHUF0, showSources = false, lastBlobs = 0;
 /** くびれなどを切る場所を決めるときの、絵の長辺。画面用と書き出し用で同じ所が切れるように、いつもこの大きさで決める */
 const CUT_REF = 720;
 
@@ -75,7 +77,7 @@ const rgb = (h: string): number[] => [parseInt(h.slice(1, 3), 16), parseInt(h.sl
 // 0.01% より小さいと、書き出しの大きさでもブロブが1画素より小さい。100000% より大きいと、画面ぜんぶが1つのブロブ。
 const SIZE_MIN = 0.01, SIZE_MAX = 100000;
 /** いま使っている大きさ（百分率）。入力欄が空や 0 のときも、最後に通った値で描く */
-let sizeGood = 17;
+let sizeGood = 8.9;
 /** 入力欄の値を確かめて、使える値に直す。直したときは理由を出す */
 function fixSize(): void {
   const el = $('size'), v = +el.value, ok = el.value.trim() !== '' && Number.isFinite(v) && v > 0;
@@ -489,25 +491,20 @@ function writeUrl(): void {
   for (const id of FIELDS) { const el = $(id); if (el.value !== el.dataset.initial) q.set(id, el.value); }
   const pv = $('palette').value; // 自分の配色は、名前ではなく色そのものを書く。ほかのブラウザでも同じ色で開ける
   if (pv === 'custom' || pv.startsWith('my:')) { q.set('palette', 'custom'); q.set('colors', (paletteBase() || draft).map((h) => h.slice(1)).join('-')); }
-  if (!$('fitblob').checked) q.set('fitblob', '0');
-  if (!$('smooth').checked) q.set('smooth', '0');
-  if (!$('soft').checked) q.set('soft', '0');
-  if (!$('trim').checked) q.set('trim', '0');
-  if (!$('soften').checked) q.set('soften', '0');
-  if ($('edges').checked) q.set('edges', '1');
-  if ($('repeat').checked) q.set('repeat', '1');
+  for (const id of CHECKS) if ($(id).checked !== ($(id).dataset.initial === '1')) q.set(id, $(id).checked ? '1' : '0'); // 最初の状態と違うものだけ書く
   if ($('repeat').checked && $('repeatgrid').checked) q.set('grid', '1');
   if (showSources) q.set('sources', '1');
   q.set('seed', String(seed));
-  if (shuf) q.set('shuf', String(shuf));
+  if (shuf !== SHUF0) q.set('shuf', String(shuf));
   const text = q.toString();
   history.replaceState(null, '', `?${text}`);
   saveText('last', text); // ブラウザを閉じても、最後の状態から始められるように
   record(text);
 }
 /** 最初の値を覚える。applyQuery が「指定のない項目は最初の値に戻す」ために使う。起動時に1回だけ */
-const SEED0 = seed;
-function rememberDefaults(): void { for (const id of FIELDS) $(id).dataset.initial = $(id).value; }
+/** 入・切のもの。最初の状態（index.html の checked）を覚えておき、URL には違うものだけ書く */
+const CHECKS = ['fitblob', 'smooth', 'soft', 'trim', 'soften', 'edges', 'repeat'];
+function rememberDefaults(): void { for (const id of FIELDS) $(id).dataset.initial = $(id).value; for (const id of CHECKS) $(id).dataset.initial = $(id).checked ? '1' : '0'; }
 /** 設定をまるごと、この問い合わせ文字列の状態にする。指定のない項目は最初の値に戻す */
 function applyQuery(text: string): void {
   const q = new URLSearchParams(text);
@@ -521,11 +518,10 @@ function applyQuery(text: string): void {
     $<HTMLDetailsElement>('pal-box').open = true;
   }
   if (!$('palette').value) $('palette').value = 'native'; // 知らない配色の名前は、柄の本来の色に読み替える
-  for (const id of ['fitblob', 'smooth', 'soft', 'trim', 'soften']) $(id).checked = q.get(id) !== '0';
-  $('edges').checked = q.get('edges') === '1';
-  $('repeat').checked = q.get('repeat') === '1'; $('repeatgrid').checked = q.get('grid') === '1';
+  for (const id of CHECKS) { const v = q.get(id); $(id).checked = v === null ? $(id).dataset.initial === '1' : v === '1'; }
+  $('repeatgrid').checked = q.get('grid') === '1';
   seed = +(q.get('seed') || 0) || SEED0;
-  shuf = +(q.get('shuf') || 0) || 0;
+  shuf = q.has('shuf') ? +(q.get('shuf') || 0) || 0 : SHUF0;
   picked.clear();
   showSources = q.get('sources') === '1';
   if (q.get('compare') === '6') $('compare').value = '10'; // 「6方式を並べる」はなくした。古い URL は「はめ方を比べる」に読み替える

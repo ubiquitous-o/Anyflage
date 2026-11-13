@@ -51,7 +51,7 @@
       <legend><span class="num">1</span>画像セットを選ぶ</legend>
       <div id="groups" class="chips"></div>
       <p id="empty" class="note" hidden>画像セットがまだない。下の「自分の画像を足す」から入れると、迷彩のブロブに押し込める。画像はこのブラウザの中だけで使う。どこにも送らない。</p>
-      <div class="row"><label for="per">使う画像の枚数 <output id="o-per"></output></label><input type="range" id="per" min="1" max="9999" value="6"></div>
+      <div class="row"><label for="per">使う画像の枚数 <output id="o-per"></output></label><input type="range" id="per" min="1" max="9999" value="40"></div>
       <div class="pair">
         <button type="button" id="shuffle">シャッフル</button>
         <label class="switch"><input type="checkbox" id="showsrc" role="switch"><span class="knob" aria-hidden="true"></span>切り抜きを見る</label>
@@ -99,7 +99,7 @@
         </div>
         <div class="stepper">
           <button type="button" id="size-down" aria-label="ブロブを小さく" title="小さく（÷1.25）">−</button>
-          <input type="number" id="size" step="any" value="17" inputmode="decimal">
+          <input type="number" id="size" step="any" value="8.9" inputmode="decimal">
           <span aria-hidden="true">%</span>
           <button type="button" id="size-up" aria-label="ブロブを大きく" title="大きく（×1.25）">＋</button>
         </div>
@@ -123,16 +123,16 @@
           <button type="button" id="pal-del" disabled>選んだ配色を消す</button>
         </div>
       </details>
-      <div class="row"><label for="tint">迷彩色の強さ <output id="o-tint"></output></label><input type="range" id="tint" min="0" max="100" value="40"></div>
+      <div class="row"><label for="tint">迷彩色の強さ <output id="o-tint"></output></label><input type="range" id="tint" min="0" max="100" value="80"></div>
       <button type="button" id="reseed">形を作り直す</button>
       <details class="more">
         <summary>ブロブの形をくわしく決める</summary>
-        <div class="row"><label for="wobble">輪郭のうねり <output id="o-wobble"></output></label><input type="range" id="wobble" min="0" max="100" value="55"></div>
+        <div class="row"><label for="wobble">輪郭のうねり <output id="o-wobble"></output></label><input type="range" id="wobble" min="0" max="100" value="19"></div>
         <div class="row"><label for="split">大きすぎるブロブ</label>
           <select id="split"><option value="wavy">うねった線で切る</option><option value="cell">直線で切る</option><option value="none">切らない</option></select>
         </div>
-        <div class="row"><label for="neck">くびれでブロブを切る <output id="o-neck"></output></label><input type="range" id="neck" min="0" max="95" step="5" value="50"></div>
-        <div class="row"><label for="notch">えぐれでブロブを切る <output id="o-notch"></output></label><input type="range" id="notch" min="0" max="100" step="5" value="50"></div>
+        <div class="row"><label for="neck">くびれでブロブを切る <output id="o-neck"></output></label><input type="range" id="neck" min="0" max="95" step="5" value="85"></div>
+        <div class="row"><label for="notch">えぐれでブロブを切る <output id="o-notch"></output></label><input type="range" id="notch" min="0" max="100" step="5" value="30"></div>
         <div class="row"><label for="flat">小さいブロブは塗るだけ <output id="o-flat"></output></label><input type="range" id="flat" min="0" max="300" step="10" value="0"></div>
         <label class="check"><input type="checkbox" id="soft" checked> ブロブの縁をなじませる（画素の段々を消す）</label>
         <label class="check"><input type="checkbox" id="edges"> ブロブの境目を線で見る</label>
@@ -157,7 +157,7 @@
       </div>
       <div class="row"><label for="carve">シームカービング（歪ませて縮める） <output id="o-carve"></output></label><input type="range" id="carve" min="0" max="90" step="10" value="60"></div>
       <div class="row"><label for="assign">どのブロブに何を入れるか</label>
-        <select id="assign"><option value="random">ブロブごとにランダム</option><option value="apart">隣どうしで同じ素材を避ける</option><option value="layer">色ごとに1種類</option></select>
+        <select id="assign"><option value="random">ブロブごとにランダム</option><option value="apart" selected>隣どうしで同じ素材を避ける</option><option value="layer">色ごとに1種類</option></select>
       </div>
       <div class="row"><label for="compare">並べて比べる</label>
         <select id="compare">
@@ -169,18 +169,18 @@
       </div>
       <details class="more">
         <summary>はめ方をくわしく決める</summary>
-        <div class="row"><label for="mix">面積寄り <output id="o-mix"></output></label><input type="range" id="mix" min="0" max="100" step="5" value="50"></div>
-        <div class="row"><label for="squeeze">締めつけ <output id="o-squeeze"></output></label><input type="range" id="squeeze" min="0" max="100" value="50"></div>
+        <div class="row"><label for="mix">面積寄り <output id="o-mix"></output></label><input type="range" id="mix" min="0" max="100" step="5" value="65"></div>
+        <div class="row"><label for="squeeze">締めつけ <output id="o-squeeze"></output></label><input type="range" id="squeeze" min="0" max="100" value="33"></div>
         <div class="row"><label for="fit">形に押し込む <output id="o-fit"></output></label><input type="range" id="fit" min="0" max="100" value="100"></div>
-        <div class="row"><label for="dist">ゆらぎ <output id="o-dist"></output></label><input type="range" id="dist" min="0" max="100" value="15"></div>
-        <div class="row"><label for="rot">回転のばらつき <output id="o-rot"></output></label><input type="range" id="rot" min="0" max="100" value="12"></div>
+        <div class="row"><label for="dist">ゆらぎ <output id="o-dist"></output></label><input type="range" id="dist" min="0" max="100" value="0"></div>
+        <div class="row"><label for="rot">回転のばらつき <output id="o-rot"></output></label><input type="range" id="rot" min="0" max="100" value="17"></div>
         <div class="row"><label for="imp">細部を大きく <output id="o-imp"></output></label><input type="range" id="imp" min="0" max="100" step="10" value="0"></div>
       </details>
       <details class="more">
         <summary>縮め方をくわしく決める</summary>
-        <div class="row"><label for="protect">肌色を保護 <output id="o-protect"></output></label><input type="range" id="protect" min="0" max="100" step="10" value="70"></div>
-        <label class="check"><input type="checkbox" id="fitblob" checked> ブロブの縦横に合わせて詰める</label>
-        <label class="check"><input type="checkbox" id="smooth" checked> なめらかに読む（画素の角を出さない）</label>
+        <div class="row"><label for="protect">肌色を保護 <output id="o-protect"></output></label><input type="range" id="protect" min="0" max="100" step="10" value="80"></div>
+        <label class="check"><input type="checkbox" id="fitblob"> ブロブの縦横に合わせて詰める</label>
+        <label class="check"><input type="checkbox" id="smooth"> なめらかに読む（画素の角を出さない）</label>
         <label class="check"><input type="checkbox" id="soften" checked> カービングの段差をならす（階段を出さない）</label>
         <div class="row"><label for="softlim">ならす飛びの上限 <output id="o-softlim"></output></label><input type="range" id="softlim" min="2" max="80" step="2" value="14"></div>
         <label class="check"><input type="checkbox" id="trim" checked> 素材の細い所を落とす（端の筋を減らす）</label>

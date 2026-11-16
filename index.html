@@ -263,10 +263,16 @@
         <label class="switch"><input type="checkbox" id="msweep" role="switch"><span class="knob" aria-hidden="true"></span>シームカービングの変化</label>
         <div class="row"><label for="mcmode">変化の方法</label>
           <select id="mcmode">
-            <option value="sine" selected>サイン波（時間で往復）</option>
+            <option value="sine" selected>波形（時間で変化）</option>
             <option value="small">ラバの大きさ（小さいほど強く）</option>
             <option value="big">ラバの大きさ（大きいほど強く）</option>
           </select>
+        </div>
+        <div id="wave-box" hidden>
+          <div class="row"><label for="wave">波形（1回ぶん）</label><button type="button" id="wave-reset">初期化</button></div>
+          <canvas id="wave" width="560" height="300" tabindex="0" aria-label="シームカービングの量の波形" style="display:block;width:100%;height:150px;touch-action:none;cursor:crosshair;border-radius:6px"></canvas>
+          <p class="note">横軸：時間（波形1回ぶん）。縦軸：量（下限 → 上限）。初期の形はサイン波。両端はつながります（ループ）。点をドラッグで調整、空いている所をクリックで点を追加、ダブルクリックで点を削除。</p>
+          <input type="hidden" id="mwave" value="auto">
         </div>
         <div id="curve-box" hidden>
           <div class="row"><label for="curve">大きさと量のカーブ</label><button type="button" id="curve-reset">初期化</button></div>
@@ -277,8 +283,9 @@
         <div class="row"><label for="mclo">下限 <output id="o-mclo"></output></label><input type="range" id="mclo" min="0" max="90" step="5" value="0"></div>
         <div class="row"><label for="mchi">上限 <output id="o-mchi"></output></label><input type="range" id="mchi" min="0" max="90" step="5" value="80"></div>
         <div class="row"><label for="mcsp">速さ <output id="o-mcsp"></output></label><input type="range" id="mcsp" min="1" max="8" step="1" value="1"></div>
+        <div class="row"><label for="mcjit">開始位置のばらつき <output id="o-mcjit"></output></label><input type="range" id="mcjit" min="0" max="100" step="5" value="0"></div>
         <p id="size-note" class="note" hidden>ラバランプのブロブごとに、大きさでシームカービングの量を決めます。大きさと量の対応は、カーブで調整できます。ラバランプが入のときだけ使用できます。</p>
-        <p id="sweep-note" class="note" hidden>シームカービングの量が、下限と上限のあいだを往復します。速さは、ループ1周あたりの往復の回数です。コマごとに画像を準備するため、計算に時間がかかります。リピートと比較表示では使用できません。</p>
+        <p id="sweep-note" class="note" hidden>シームカービングの量が、下限と上限のあいだを波形のとおりに動きます。速さは、ループ1周あたりの波形の回数です。開始位置のばらつきを上げると、ブロブごとに波形の違う所から始まります。計算に時間がかかります。リピートと比較表示では使用できません。</p>
         <p id="video-note" class="note"></p>
         <button type="button" class="primary" id="save-video">MP4 を保存</button>
       </div>

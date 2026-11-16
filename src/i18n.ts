@@ -64,10 +64,11 @@ const EN: Record<string, string> = {
   'ゆらぎ（不規則な揺れ）': 'Sway (every part drifts on its own)', '流れ（液体状の渦）': 'Flow (swirls like liquid)', '呼吸（膨張と収縮）': 'Breathe (each blob swells and shrinks)',
   '波（一方向）': 'Wave (travels in one direction)', '二重ゆがみ（強いうねり）': 'Double warp (strong swirls)',
   '重ねる動き': 'Second motion', '重ねない': 'None', '重ねる動きの強さ': 'Second motion amount',
-  'シームカービングの変化': 'Seam carving change', '変化の方法': 'How it changes', 'サイン波（時間で往復）': 'Sine wave (swings over time)', 'ラバの大きさ（小さいほど強く）': 'Lava blob size (smaller is stronger)', 'ラバの大きさ（大きいほど強く）': 'Lava blob size (larger is stronger)',
+  'シームカービングの変化': 'Seam carving change', '変化の方法': 'How it changes', '波形（時間で変化）': 'Waveform (changes over time)', 'ラバの大きさ（小さいほど強く）': 'Lava blob size (smaller is stronger)', 'ラバの大きさ（大きいほど強く）': 'Lava blob size (larger is stronger)',
   'ラバランプのブロブごとに、大きさでシームカービングの量を決めます。大きさと量の対応は、カーブで調整できます。ラバランプが入のときだけ使用できます。': 'Each lava lamp blob gets a seam carving amount from its size. Adjust how size maps to amount with the curve. Available only while the lava lamp is on.',
   '大きさと量のカーブ': 'Size-to-amount curve', '初期化': 'Reset', '横軸：ブロブの大きさ（小 → 大）。縦軸：量（下限 → 上限）。点をドラッグで調整、空いている所をクリックで点を追加、ダブルクリックで点を削除。': 'Horizontal: blob size (small → large). Vertical: amount (lower → upper limit). Drag a point to adjust, click an empty spot to add a point, double-click a point to remove it.', '下限': 'Lower limit', '上限': 'Upper limit', '速さ': 'Speed', 'カービングの変化を生成中…': 'Drawing the carving sweep…',
-  'シームカービングの量が、下限と上限のあいだを往復します。速さは、ループ1周あたりの往復の回数です。コマごとに画像を準備するため、計算に時間がかかります。リピートと比較表示では使用できません。': 'The seam carving amount swings between the lower and upper limits. Speed is the number of swings per loop. Images are prepared again for every frame, so it takes time. Unavailable with repeat and comparison views.',
+  'シームカービングの量が、下限と上限のあいだを波形のとおりに動きます。速さは、ループ1周あたりの波形の回数です。開始位置のばらつきを上げると、ブロブごとに波形の違う所から始まります。計算に時間がかかります。リピートと比較表示では使用できません。': 'The seam carving amount follows the waveform between the lower and upper limits. Speed is the number of waveforms per loop. Raising the start offset spread makes each blob start from a different point of the waveform. It takes time to compute. Unavailable with repeat and comparison views.',
+  '波形（1回ぶん）': 'Waveform (one cycle)', '開始位置のばらつき': 'Start offset spread', '同期': 'In sync', '横軸：時間（波形1回ぶん）。縦軸：量（下限 → 上限）。初期の形はサイン波。両端はつながります（ループ）。点をドラッグで調整、空いている所をクリックで点を追加、ダブルクリックで点を削除。': 'Horizontal: time (one cycle). Vertical: amount (lower → upper limit). Starts as a sine wave. The two ends are joined (it loops). Drag a point to adjust, click an empty spot to add a point, double-click a point to remove it.',
   'ラバランプ（ブロブの生成・結合・分離）': 'Lava lamp (blobs appear, merge and split)', 'MP4 動画': 'MP4 video', 'PNG 画像': 'PNG image', 'この柄では使用できません（実物の柄、タイル、ストライプ）。': 'Unavailable with this pattern (real-swatch patterns, tiles and stripes).', '変化の強さ': 'Change amount', '侵食の速さ': 'Invasion speed', 'ラバランプを生成中…': 'Drawing the lava lamp…',
   'ブロブが生成・結合・分離します。計算に時間がかかります。プレビューは準備後に再生され、書き出しには数分かかります。リピートと比較表示では使用できません。': 'Blobs appear, merge and split. It takes time to compute. The preview plays once it is ready, and export takes minutes. Unavailable with tileable images and comparisons.',
   '動きの強さ': 'Motion amount', '動きの細かさ': 'Motion detail', 'ループの長さ': 'Loop length', 'MP4 を保存': 'Save MP4',
@@ -123,7 +124,7 @@ const EN: Record<string, string> = {
 
 /** 数字や名前が入る文言。上から順に試す */
 const RULES: [RegExp, (m: RegExpMatchArray) => string][] = [
-  [/^1周に (\d+)往復$/, (m) => `${m[1]} per loop`],
+  [/^1周に (\d+)回$/, (m) => `${m[1]} per loop`],
   [/^カービングの変化を生成中…（(\d+)\/(\d+)）$/, (m) => `Drawing the carving sweep… (frame ${m[1]} of ${m[2]})`],
   [/^ラバランプを生成中…（(\d+)\/(\d+)）$/, (m) => `Drawing the lava lamp… (frame ${m[1]} of ${m[2]})`],
   [/^(動画を作成中|ラバランプを生成中)…（準備 (\d)\/2（(\d+)\/(\d+)））$/, (m) => `${m[1] === '動画を作成中' ? 'Encoding the video' : 'Drawing the lava lamp'}… (preparing ${m[2]}/2, frame ${m[3]} of ${m[4]})`],

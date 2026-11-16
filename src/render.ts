@@ -30,6 +30,12 @@ export interface Job {
   phase?: boolean;
   /** ラバランプの1コマ。kind が one のときだけ効く */
   lava?: Lava;
+  /**
+   * 素材を縮める量（シームカービング）を、波形で動かす。kind が one のときだけ効く。lo〜hi のあいだ。
+   * lut は波形（1往復ぶん、等間隔、0 が lo、1 が hi）。turn はいま波形のどこか（0〜1）。
+   * spread は、ブロブごとの開始位置のばらつき（0 なら全部同じ、1 なら波形のどこからでも）
+   */
+  wave?: { lo: number; hi: number; lut: number[]; turn: number; spread: number };
 }
 /** ラバランプの1コマ。theta は1周の中の位置（0〜2π）、amount は溶け具合（0〜1）。コマは順に頼む。first は1コマ目（前のコマとのつながりを切る） */
 export interface Lava {
@@ -159,9 +165,20 @@ function pickers(job: Job): Picker[] {
   return out;
 }
 
+/** 波形から、ブロブごとの量を決める。key は、ブロブごとに決まった数（開始位置のずれを決める） */
+function waveCarve(count: number, key: (c: number) => number, w: NonNullable<Job['wave']>, seed: number): Float32Array {
+  const out = new Float32Array(count), L = w.lut.length - 1;
+  for (let c = 0; c < count; c++) {
+    let ph = w.turn + (w.spread > 0 ? w.spread * Kao.hash2(key(c), 91, seed | 0) : 0); ph -= Math.floor(ph);
+    const x = ph * L, k = Math.min(L - 1, x | 0);
+    out[c] = w.lo + (w.hi - w.lo) * Math.min(1, Math.max(0, w.lut[k] + (w.lut[k + 1] - w.lut[k]) * (x - k)));
+  }
+  return out;
+}
 function renderOne(job: Job, p: Params, src: Picker[]): Result {
   const { W, H } = job, data = new Uint8ClampedArray(W * H * 4), cam = getCamo(W, H, p, job.reuse);
-  Kao.renderCamo(data, cam, src, job.colors as RGB[], p);
+  if (job.wave) cam.carve = waveCarve(cam.comps.count, (c) => c, job.wave, p.seed);
+  try { Kao.renderCamo(data, cam, src, job.colors as RGB[], p); } finally { cam.carve = undefined; } // 迷彩は使い回すので、量は残さない
   if (job.soft) softenEdges(data, W, H, cam);
   if (job.edges) whiteEdges(data, cam.ids, W, 0, 0, W - 1, H - 1); // ブロブの境目を白い線で描く。どこで切れているか見る用
   return { data, W, H, blobs: cam.comps.count, phase: job.phase ? phaseMap(cam, 0, 0, W, H, p.seed) : undefined };
@@ -434,7 +451,7 @@ function renderLava(job: Job, p0: Params, src: Picker[]): Result {
   }
   if (lv.pass === 'f') lavaKeys.F[lv.index] = keys; else if (lv.pass === 'b') lavaKeys.B[lv.index] = keys;
   if (dry) { lavaPrev = { W, H, owner, org, ageOf, layerOf, aspectOf, carveOf, uv: null }; return { data: new Uint8ClampedArray(4), W: 1, H: 1, blobs: bm.count }; } // 絵は返さない。1画素だけ
-  cam.keys = camKeys; cam.steady = true; cam.aspect = aspect; cam.carve = carve;
+  cam.keys = camKeys; cam.steady = true; cam.aspect = aspect; cam.carve = carve || (job.wave ? waveCarve(cmA.count, (c) => camKeys[c], job.wave, p.seed) : undefined);
   cam.maps = {}; cam.ros = undefined; // 0 コマ目で向きを測ったときの写像は使わない（回し戻す前のもの）
   const picks = new Int32Array(cmA.count).fill(-1), turn = new Float32Array(cmA.count);
   for (let c = 0; c < cmA.count; c++) { const pk = lavaStill.pick.get(camKeys[c]); if (pk !== undefined) picks[c] = pk; turn[c] = lavaStill.turn.get(camKeys[c]) || 0; }

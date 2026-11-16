@@ -45,7 +45,7 @@ const EN: Record<string, string> = {
   'シームカービング': 'Seam carving', '画像の割り当て': 'Image assignment', 'ランダム': 'Random', '隣接で重複を避ける': 'Avoid repeats between neighbours', '色ごとに1画像': 'One image per colour',
   '比較表示': 'Comparison', 'なし': 'None', '元画像と比較（左：適用後／右：元）': 'Compare with originals (left: squeezed / right: original)',
   'はめ方を比較（10方式）': 'Compare fitting methods (all 10)', '迷彩柄を比較（全種）': 'Compare camouflage (all patterns)',
-  'はめ方の詳細設定': 'Fitting details', '面積均等の割合': 'Lean toward equal area', '締めつけ': 'Tightness', '形への追従': 'Push into shape', 'ゆがみ': 'Distortion', '回転のばらつき': 'Rotation spread', '細部の強調': 'Detail emphasis',
+  'はめ方の詳細設定': 'Fitting details', '面積均等の割合': 'Lean toward equal area', '締めつけ': 'Tightness', '形への追従': 'Push into shape', 'ゆがみ': 'Distortion', '左右反転を混ぜる': 'Mix in mirrored images', '回転のばらつき': 'Rotation spread', '細部の強調': 'Detail emphasis',
   '縮小の詳細設定': 'Shrinking details', '肌色の保護': 'Protect skin tones', 'ブロブの縦横比に合わせる': 'Match the blob\'s proportions', 'なめらかに補間': 'Smooth interpolation',
   'カービングの段差をならす': 'Smooth carving steps', 'ならす範囲の上限': 'Largest jump to smooth', '細い部分を省く': 'Drop thin parts',
   // 4 出力

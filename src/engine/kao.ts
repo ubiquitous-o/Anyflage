@@ -449,7 +449,7 @@ export const Kao = (function () {
       var ph0 = photos[camo.picks && camo.picks[c] >= 0 && camo.picks[c] < np ? camo.picks[c] : apart ? apart[c] : p.assign === 'layer' ? L % np : Math.floor(r1 * np) % np];
       var ph: Source = 'pick' in ph0 ? ph0.pick(camo.aspect ? camo.aspect[c] : bw / bh) : ph0; // content-aware sources hand back a version carved for this blob's proportions
       if (ph.shape && p.method && p.method !== 'radial') {
-        var opt: FitOptions = { method: p.method, ang: (r2 - 0.5) * 2 * Math.PI * p.rot, flip: r3 < 0.5 ? -1 : 1, spin: (r3 - 0.5) * 2, dist: dist, tint: tint, squeeze: sq, mix: p.mix === undefined ? 0.5 : p.mix, imp: p.imp || 0, smooth: !!p.smooth, trim: !!p.trim };
+        var opt: FitOptions = { method: p.method, ang: (r2 - 0.5) * 2 * Math.PI * p.rot, flip: !p.noFlip && r3 < 0.5 ? -1 : 1, spin: (r3 - 0.5) * 2, dist: dist, tint: tint, squeeze: sq, mix: p.mix === undefined ? 0.5 : p.mix, imp: p.imp || 0, smooth: !!p.smooth, trim: !!p.trim };
         if (p.method === 'elastic') renderElastic(out, camo, c, ph, col, opt); else if (p.method === 'carve') renderCarve(out, camo, c, ph, col, opt); else renderDisc(out, camo, c, ph, col, opt);
         continue;
       }
@@ -461,7 +461,7 @@ export const Kao = (function () {
       }
       var rr = Math.round(bh * 0.07), cr = Math.round(bw * 0.07);
       rmin = smooth(rmin, rr); rmax = smooth(rmax, rr); cmin = smooth(cmin, cr); cmax = smooth(cmax, cr);
-      var s = Math.max(bw, bh), ang = (r2 - 0.5) * 2 * Math.PI * p.rot, flip = r3 < 0.5 ? -1 : 1;
+      var s = Math.max(bw, bh), ang = (r2 - 0.5) * 2 * Math.PI * p.rot, flip = !p.noFlip && r3 < 0.5 ? -1 : 1;
       var ph1 = r4 * 6.283, ph2 = r1 * 6.283, pw = ph.w, phh = ph.h, pd = ph.data, F = ph.face || null, SH = ph.shape || null;
       var ccx = cm.cx ? cm.cx[c] : 0, ccy = cm.cy ? cm.cy[c] : 0, dmax = cm.dmax ? Math.max(cm.dmax[c], 0.5) : 1;
       for (ly = 0; ly < bh; ly++) for (lx = 0, i = (by + ly) * W + bx; lx < bw; lx++, i++) {

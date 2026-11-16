@@ -73,7 +73,7 @@ function params(patternId = $('pattern').value): Params {
   return {
     pattern: pat.id, layerAt: pat.id === 'blob' ? undefined : pat.make(seed, size), flatBelow: pat.flatBelow * num('flat'), flatLayers: pat.flatLayers, noSplit: pat.noSplit, split: $('split').value,
     seed, size, cutRef: CUT_REF, neck: num('neck'), notch: num('notch'), wobble: num('wobble'), fit: num('fit'), dist: num('dist'), rot: num('rot'), zoom: 1, tint: num('tint'),
-    smooth: $('smooth').checked, trim: $('trim').checked, assign: $('assign').value, method: $('method').value as Method, imp: num('imp'), mix: num('mix'), squeeze: num('squeeze'),
+    smooth: $('smooth').checked, trim: $('trim').checked, noFlip: !$('flip').checked, assign: $('assign').value, method: $('method').value as Method, imp: num('imp'), mix: num('mix'), squeeze: num('squeeze'),
   };
 }
 const rgb = (h: string): number[] => [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)];
@@ -691,7 +691,7 @@ function writeUrl(): void {
 }
 /** 最初の値を覚える。applyQuery が「指定のない項目は最初の値に戻す」ために使う。起動時に1回だけ */
 /** 入・切のもの。最初の状態（index.html の checked）を覚えておき、URL には違うものだけ書く */
-const CHECKS = ['fitblob', 'smooth', 'soft', 'trim', 'soften', 'edges', 'repeat', 'motion', 'lava'];
+const CHECKS = ['fitblob', 'smooth', 'soft', 'trim', 'soften', 'edges', 'repeat', 'motion', 'lava', 'flip'];
 function rememberDefaults(): void { for (const id of FIELDS) $(id).dataset.initial = $(id).value; for (const id of CHECKS) $(id).dataset.initial = $(id).checked ? '1' : '0'; }
 /** 設定をまるごと、この問い合わせ文字列の状態にする。指定のない項目は最初の値に戻す */
 function applyQuery(text: string): void {

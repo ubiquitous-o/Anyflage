@@ -215,7 +215,7 @@ function renderOriginals(job: Job, p: Params, src: Picker[]): Result {
   for (let c = 0; c < cm.count; c++) {
     const L = cm.layer[c], col = cols[L % cols.length], bx = cm.x0[c], by = cm.y0[c], bw = cm.x1[c] - bx + 1, bh = cm.y1[c] - by + 1;
     const raw = pick[c] < 0 ? null : rawOf.get(src[pick[c]]) || null;
-    const flip = Kao.hash2(c, 37, p.seed | 0) < 0.5 ? -1 : 1, k = raw ? Math.min(bw / raw.w, bh / raw.h) : 1;
+    const flip = !p.noFlip && Kao.hash2(c, 37, p.seed | 0) < 0.5 ? -1 : 1, k = raw ? Math.min(bw / raw.w, bh / raw.h) : 1;
     for (let y = by; y < by + bh; y++) for (let x = bx, i = y * W + bx; x < bx + bw; x++, i++) {
       if (ids[i] !== c) continue;
       let r = col[0], g = col[1], b = col[2];

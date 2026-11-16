@@ -22,6 +22,8 @@ export interface Params {
   dist: number;
   /** 回転のばらつき */
   rot: number;
+  /** 画像を左右反転させない。ふつうは、ブロブごとに半分の確率で反転する。文字や矢印のある画像は、反転すると鏡文字や逆向きになる */
+  noFlip?: boolean;
   zoom: number;
   /** 迷彩色の強さ */
   tint: number;

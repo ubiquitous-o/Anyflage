@@ -64,6 +64,8 @@ const EN: Record<string, string> = {
   'ゆらぎ（不規則な揺れ）': 'Sway (every part drifts on its own)', '流れ（液体状の渦）': 'Flow (swirls like liquid)', '呼吸（膨張と収縮）': 'Breathe (each blob swells and shrinks)',
   '波（一方向）': 'Wave (travels in one direction)', '二重ゆがみ（強いうねり）': 'Double warp (strong swirls)',
   '重ねる動き': 'Second motion', '重ねない': 'None', '重ねる動きの強さ': 'Second motion amount',
+  'シームカービングの変化（サイン波）': 'Seam carving sweep (sine wave)', '下限': 'Lower limit', '上限': 'Upper limit', '速さ': 'Speed', 'カービングの変化を生成中…': 'Drawing the carving sweep…',
+  'シームカービングの量が、下限と上限のあいだを往復します。速さは、ループ1周あたりの往復の回数です。コマごとに画像を準備するため、計算に時間がかかります。リピートと比較表示では使用できません。': 'The seam carving amount swings between the lower and upper limits. Speed is the number of swings per loop. Images are prepared again for every frame, so it takes time. Unavailable with repeat and comparison views.',
   'ラバランプ（ブロブの生成・結合・分離）': 'Lava lamp (blobs appear, merge and split)', 'MP4 動画': 'MP4 video', 'PNG 画像': 'PNG image', 'この柄では使用できません（実物の柄、タイル、ストライプ）。': 'Unavailable with this pattern (real-swatch patterns, tiles and stripes).', '変化の強さ': 'Change amount', '侵食の速さ': 'Invasion speed', 'ラバランプを生成中…': 'Drawing the lava lamp…',
   'ブロブが生成・結合・分離します。計算に時間がかかります。プレビューは準備後に再生され、書き出しには数分かかります。リピートと比較表示では使用できません。': 'Blobs appear, merge and split. It takes time to compute. The preview plays once it is ready, and export takes minutes. Unavailable with tileable images and comparisons.',
   '動きの強さ': 'Motion amount', '動きの細かさ': 'Motion detail', 'ループの長さ': 'Loop length', 'MP4 を保存': 'Save MP4',
@@ -119,6 +121,8 @@ const EN: Record<string, string> = {
 
 /** 数字や名前が入る文言。上から順に試す */
 const RULES: [RegExp, (m: RegExpMatchArray) => string][] = [
+  [/^1周に (\d+)往復$/, (m) => `${m[1]} per loop`],
+  [/^カービングの変化を生成中…（(\d+)\/(\d+)）$/, (m) => `Drawing the carving sweep… (frame ${m[1]} of ${m[2]})`],
   [/^ラバランプを生成中…（(\d+)\/(\d+)）$/, (m) => `Drawing the lava lamp… (frame ${m[1]} of ${m[2]})`],
   [/^(動画を作成中|ラバランプを生成中)…（準備 (\d)\/2（(\d+)\/(\d+)））$/, (m) => `${m[1] === '動画を作成中' ? 'Encoding the video' : 'Drawing the lava lamp'}… (preparing ${m[2]}/2, frame ${m[3]} of ${m[4]})`],
   [/^ブロブ (\d+)個分／秒$/, (m) => `${m[1]} blob widths per second`],

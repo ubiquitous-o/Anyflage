@@ -260,6 +260,11 @@
         <div class="row"><label for="mgrow">侵食の速さ <output id="o-mgrow"></output></label><input type="range" id="mgrow" min="1" max="20" value="6"></div>
         <p id="lava-progress" class="note" role="status"></p>
         <p id="lava-note" class="note" hidden>ブロブが生成・結合・分離します。計算に時間がかかります。プレビューは準備後に再生され、書き出しには数分かかります。リピートと比較表示では使用できません。</p>
+        <label class="switch"><input type="checkbox" id="msweep" role="switch"><span class="knob" aria-hidden="true"></span>シームカービングの変化（サイン波）</label>
+        <div class="row"><label for="mclo">下限 <output id="o-mclo"></output></label><input type="range" id="mclo" min="0" max="90" step="5" value="0"></div>
+        <div class="row"><label for="mchi">上限 <output id="o-mchi"></output></label><input type="range" id="mchi" min="0" max="90" step="5" value="80"></div>
+        <div class="row"><label for="mcsp">速さ <output id="o-mcsp"></output></label><input type="range" id="mcsp" min="1" max="8" step="1" value="1"></div>
+        <p id="sweep-note" class="note" hidden>シームカービングの量が、下限と上限のあいだを往復します。速さは、ループ1周あたりの往復の回数です。コマごとに画像を準備するため、計算に時間がかかります。リピートと比較表示では使用できません。</p>
         <p id="video-note" class="note"></p>
         <button type="button" class="primary" id="save-video">MP4 を保存</button>
       </div>

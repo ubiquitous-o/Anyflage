@@ -58,6 +58,8 @@ function buffersOf(v: unknown, out = new Set<ArrayBuffer>()): Set<ArrayBuffer> {
 }
 
 const prepared = new Map<string, string>();
+/** 素材ごとの、準備を頼む相手。いつも同じ相手に頼む。相手が前に作ったもの（動画用の、刻みごとの版）を使い回せる */
+const home = new Map<string, number>();
 /**
  * 素材の準備を、準備する役たちに分けて頼む。済んだものは描く役へ渡す。
  * 同じ設定で準備済みの素材は飛ばす。onProgress には（済んだ数、全部の数）が来る。
@@ -65,11 +67,13 @@ const prepared = new Map<string, string>();
 export async function prepare(ids: string[], mat: MaterialOptions, method: string, mix: number, imp: number, trim: boolean, onProgress?: (done: number, total: number) => void): Promise<void> {
   const key = JSON.stringify([mat, method, mix, imp, trim]), todo = ids.filter((id) => prepared.get(id) !== key && raws.has(id));
   if (!todo.length) return;
-  let done = 0, next = 0;
+  let done = 0;
   onProgress?.(0, todo.length);
-  const runOne = async (s: Slot): Promise<void> => {
-    while (next < todo.length) {
-      const id = todo[next++], n = ++seq, first = !s.has.has(id);
+  for (const id of todo) if (!home.has(id)) home.set(id, home.size % POOL);
+  const runOne = async (s: Slot, k: number): Promise<void> => {
+    for (const id of todo) {
+      if (home.get(id) !== k) continue;
+      const n = ++seq, first = !s.has.has(id);
       s.has.add(id);
       try {
         const r = await ask(s.w, { t: 'prep', n, id, raw: first ? raws.get(id) : undefined, mat, method, mix, imp, trim });
@@ -82,7 +86,7 @@ export async function prepare(ids: string[], mat: MaterialOptions, method: strin
       onProgress?.(++done, todo.length);
     }
   };
-  await Promise.all(Array.from({ length: Math.min(POOL, todo.length) }, (_, k) => runOne(slot(k))));
+  await Promise.all(Array.from({ length: POOL }, (_, k) => (todo.some((id) => home.get(id) === k) ? runOne(slot(k), k) : Promise.resolve())));
 }
 
 /** 絵を1枚描いてもらう。頼んだ順に、1枚ずつ描く */

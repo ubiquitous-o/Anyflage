@@ -1,5 +1,5 @@
 // 試作 prototype/anyflage.engine.js の移植。ロジックは同じ。型を足し、使い回しの置き場に名前を付けた。
-import type { BlobMap, Camo, CarveOptions, Comps, F32, FitOptions, Grid, Inv, Mesh, Params, Pixels, Raster, RGB, Source, SourceLike, Trace, UV } from './types.ts';
+import type { BlobMap, Camo, CarveGrid, CarveOptions, Comps, F32, FitOptions, Grid, Inv, Mesh, Params, Pixels, Raster, RGB, Source, SourceLike, Trace, UV } from './types.ts';
 
 export const Kao = (function () {
   function hash2(ix: number, iy: number, s: number) {
@@ -625,6 +625,12 @@ export const Kao = (function () {
         for (var ai = 0; ai < add.length; ai += 3) { okc[add[ai]] = 1; Xt[add[ai]] = add[ai + 1]; Yt[add[ai]] = add[ai + 2]; }
       }
     }
+    var cgrid: CarveGrid | undefined;
+    if (o.withGrid) { // 升目の表も返す
+      var gok = okc, gin = Mb;
+      if (!gok || !gin) { gok = new Uint8Array(W * H); gin = new Float32Array(W * H); for (y = 0; y < ch; y++) for (x = 0; x < cw; x++) if (At[x * H + y] > 110) { gok[x * H + y] = 1; gin[x * H + y] = 1; } }
+      cgrid = { cw: cw, ch: ch, stride: H, f: f, x: Xt, y: Yt, ok: gok, inside: gin };
+    }
     var ow = Math.max(4, Math.round(cw / f)), oh = Math.max(4, Math.round(ch / f)), out = new Uint8ClampedArray(ow * oh * 4);
     // carved cell (cx, cy) lives at transposed index cx * H + cy
     for (y = 0; y < oh; y++) for (x = 0; x < ow; x++) {
@@ -652,7 +658,7 @@ export const Kao = (function () {
       var sp = (Math.min(h - 1, Math.round(py)) * w + Math.min(w - 1, Math.round(px))) * 4, q = (y * ow + x) * 4;
       out[q] = data[sp]; out[q + 1] = data[sp + 1]; out[q + 2] = data[sp + 2]; out[q + 3] = data[sp + 3];
     }
-    return { w: ow, h: oh, data: out };
+    return cgrid ? { w: ow, h: oh, data: out, grid: cgrid } : { w: ow, h: oh, data: out };
   }
   // ================= Alternative warps =================
   // Every shape (blob or silhouette) is reduced to a coarse grid. Three methods map a shape onto the unit disc

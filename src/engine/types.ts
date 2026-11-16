@@ -152,7 +152,7 @@ export interface Mesh {
   cx: number; cy: number; rmax: number; area: number;
 }
 
-export interface Raster { w: number; h: number; data: Pixels }
+export interface Raster { w: number; h: number; data: Pixels; grid?: CarveGrid }
 
 /** 素材1つ。アルファが切り抜きのマスク。後ろの任意項目は使い回し */
 export interface Source extends Raster {
@@ -181,6 +181,21 @@ export interface CarveOptions {
   soften?: number;
   /** ならす飛びの上限（升の数）。隣の升との読む位置の差がこれを超える所は、ならさない。省くと 14 */
   softenLimit?: number;
+  /** true なら、絵といっしょに、縮めたあとの升目ごとの「元の絵のどこを読むか」の表（CarveGrid）も返す。量のちがう版をなめらかにつなぐため */
+  withGrid?: boolean;
+}
+/** シームカービングしたあとの升目。升 (cx, cy) は cx * stride + cy にある */
+export interface CarveGrid {
+  /** 升目の幅と高さ（升の数） */
+  cw: number; ch: number; stride: number;
+  /** 升1つが、元の絵の何画素ぶんか、の逆数 */
+  f: number;
+  /** 升ごとの、元の絵の読む位置 */
+  x: Float32Array; y: Float32Array;
+  /** 升に読む位置があるか */
+  ok: Uint8Array;
+  /** 絵の中かどうか（0〜1）。0.5 の線が輪郭 */
+  inside: Float32Array;
 }
 
 export interface FitOptions {

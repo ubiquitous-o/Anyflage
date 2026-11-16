@@ -4,6 +4,8 @@
 
 迷彩柄のブロブひとつずつに、写真や物の形を歪めて押し込むグラフィック生成ツール。遠目は迷彩、近づくと顔や人や猫が見える。
 
+![Anyflage の画面。フロッグスキン迷彩のブロブに肖像画を押し込んだ絵と、右に設定のパネル](assets/screenshot.webp)
+
 https://ubiquitous-o.github.io/Anyflage/
 
 ## 使い方

@@ -4,6 +4,8 @@ English | [日本語](README.ja.md)
 
 A graphics tool that warps photos and objects and squeezes one into every blob of a camouflage pattern. From a distance it reads as camouflage; up close you see faces, people and cats.
 
+![The Anyflage screen: portraits squeezed into the blobs of a Frog Skin camouflage pattern, with the settings panel on the right](assets/screenshot.webp)
+
 https://ubiquitous-o.github.io/Anyflage/
 
 ## How to use

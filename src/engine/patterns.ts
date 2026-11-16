@@ -299,6 +299,23 @@ function tiles(seed: number, size: number): LayerFn {
 }
 
 /**
+ * まっすぐな帯を並べる。迷彩ではない。帯1本がブロブ1つ。隣の帯と色（層）が必ず違うので、帯どうしはつながらない。
+ * across が true なら横の帯（ボーダー）、false なら縦の帯。帯の幅は「ブロブの大きさ」の半分。
+ * 帯は絵の端から端まで続く。長すぎる帯をどう切るかは、画面の「大きすぎるブロブの切り方」で決まる（切らなければ1本まるごと）
+ */
+function stripes(across: boolean): (seed: number, size: number) => LayerFn {
+  return (seed, size) => {
+    const w = size * 0.5, off = hash2(7, 11, seed); // 帯の位置を種でずらす
+    return (nx, ny) => {
+      const i = Math.floor((across ? ny : nx) / w + off);
+      return ((i % 4) + 4) % 4;
+    };
+  };
+}
+/** 時間で動かせるノイズがない柄。ラバランプに使えない。大きさの倍率もそろえない */
+export const STILL_IDS = new Set(['tiles', 'vstripe', 'hstripe']);
+
+/**
  * 柄ごとの、ブロブの大きさの倍率。同じ「ブロブの大きさ」で、どの柄も色のかたまりが同じくらいの大きさになるようにそろえる。
  * そろえないと、柄を切り替えたとたんにブロブが何倍にも変わる（実物の柄は、標準の柄の 1/4〜1/20 だった）。
  * 基準は「Anyflage 標準」。値は scripts/measure-sizes.ts で測って決めた。柄を足したら、測って足す。
@@ -322,6 +339,12 @@ export const PATTERNS: Pattern[] = [
   { id: 'tiles', name: '角丸の正方形タイル', kind: 'その他', flatBelow: 0, flatLayers: [0], noSplit: true, colors: ['#14170F', '#C2B280', '#4B5D2A', '#5A4028'],
     note: '迷彩ではない。角の丸い正方形を升目に並べる。押し込み方を素直な形で比べるための見本。すき間には素材を入れない。「ブロブの大きさ」がタイル1枚の大きさ。',
     make: tiles },
+  { id: 'vstripe', name: '縦のストライプ', kind: 'その他', flatBelow: 0, colors: ['#C2B280', '#4B5D2A', '#5A4028', '#1C1F18'],
+    note: '迷彩ではない。まっすぐな縦の帯を並べる。帯1本がブロブ1つ。帯の幅は「ブロブの大きさ」の半分。長い帯の切り方は「大きすぎるブロブの切り方」で選ぶ。',
+    make: stripes(false) },
+  { id: 'hstripe', name: '横のストライプ（ボーダー）', kind: 'その他', flatBelow: 0, colors: ['#C2B280', '#4B5D2A', '#5A4028', '#1C1F18'],
+    note: '迷彩ではない。まっすぐな横の帯を並べる。帯1本がブロブ1つ。帯の幅は「ブロブの大きさ」の半分。長い帯の切り方は「大きすぎるブロブの切り方」で選ぶ。',
+    make: stripes(true) },
   { id: 'woodland', name: 'ウッドランド（米 M81 系）', kind: '軍用', flatBelow: 0.0012, colors: ['#A9A67C', '#4A5A3A', '#5F4B37', '#1F1F1B'],
     note: '1981年。茶が多いほうの ERDL を6割拡大した4色。明るい緑に染めた地へ、濃緑・茶・黒を重ねて刷る。縁はくっきり、ぼかしなし。黒は枝のように細く伸びる。', make: woodland },
   { id: 'dpm', name: 'ブラッシュストローク（英 DPM 系）', kind: '軍用', flatBelow: 0.0012, colors: ['#B7A06B', '#56653B', '#6A4930', '#1E1E1A'],

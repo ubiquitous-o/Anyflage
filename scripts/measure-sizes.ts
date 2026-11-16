@@ -8,7 +8,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import pngjs from 'pngjs';
 import { Kao } from '../src/engine/kao.ts';
-import { PATTERNS, SIZE_FIX, swatchPattern } from '../src/engine/patterns.ts';
+import { PATTERNS, SIZE_FIX, STILL_IDS, swatchPattern } from '../src/engine/patterns.ts';
 import { ROOT } from './lib.ts';
 
 const dir = join(ROOT, 'public', 'swatches');
@@ -34,7 +34,7 @@ function measure(id: string): number {
 const target = measure('blob'), next: Record<string, number> = {};
 console.log(`基準（Anyflage 標準）：${target.toFixed(1)} 画素`);
 for (const pat of PATTERNS) {
-  if (pat.id === 'blob' || pat.id === 'tiles') continue;
+  if (pat.id === 'blob' || STILL_IDS.has(pat.id)) continue;
   const g = measure(pat.id), now = SIZE_FIX[pat.id] || 1, mul = target / g;
   next[pat.id] = +(now * mul).toFixed(2);
   console.log(pat.id.padEnd(16), `大きさ ${g.toFixed(1).padStart(6)}`, `今の倍率 ${now.toFixed(2).padStart(6)}`, `今の倍率に掛ける値 ${mul.toFixed(2)}`);

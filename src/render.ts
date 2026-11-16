@@ -2,7 +2,7 @@
 // 画面（main.ts）は「何を描くか」を Job にして送り、できた画素を受け取る。
 // 計算を画面と別の場所でやるので、描いているあいだも画面は固まらない。
 import { Kao } from './engine/kao.ts';
-import { PATTERNS, patternById, setNoiseTime, swatchPattern } from './engine/patterns.ts';
+import { PATTERNS, STILL_IDS, patternById, setNoiseTime, swatchPattern } from './engine/patterns.ts';
 import type { Swatch } from './engine/patterns.ts';
 import { Material } from './material.ts';
 import type { MaterialOptions, Variant } from './material.ts';
@@ -253,7 +253,7 @@ function lavaParams(p: Params, lv: Lava): Params {
     } };
   }
   const pat = patternById(p.pattern || 'blob');
-  if (!pat.id.startsWith('sw-') && pat.id !== 'tiles') { // 0 コマ目（θ = 0）は重みがどちらも 0。止まった絵と同じ柄
+  if (!pat.id.startsWith('sw-') && !STILL_IDS.has(pat.id)) { // 0 コマ目（θ = 0）は重みがどちらも 0。止まった絵と同じ柄
     setNoiseTime(m * (1 - c) / 2, m * s / 2);
     return { ...p, layerAt: pat.make(p.seed, p.size) };
   }

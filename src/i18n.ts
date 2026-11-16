@@ -64,7 +64,7 @@ const EN: Record<string, string> = {
   'ゆらぎ（不規則な揺れ）': 'Sway (every part drifts on its own)', '流れ（液体状の渦）': 'Flow (swirls like liquid)', '呼吸（膨張と収縮）': 'Breathe (each blob swells and shrinks)',
   '波（一方向）': 'Wave (travels in one direction)', '二重ゆがみ（強いうねり）': 'Double warp (strong swirls)',
   '重ねる動き': 'Second motion', '重ねない': 'None', '重ねる動きの強さ': 'Second motion amount',
-  'ラバランプ（ブロブの生成・結合・分離）': 'Lava lamp (blobs appear, merge and split)', 'MP4 動画': 'MP4 video', 'PNG 画像': 'PNG image', 'この柄では使用できません（実物の柄、タイル）。': 'Unavailable with this pattern (real-swatch patterns and tiles).', '変化の強さ': 'Change amount', '侵食の速さ': 'Invasion speed', 'ラバランプを生成中…': 'Drawing the lava lamp…',
+  'ラバランプ（ブロブの生成・結合・分離）': 'Lava lamp (blobs appear, merge and split)', 'MP4 動画': 'MP4 video', 'PNG 画像': 'PNG image', 'この柄では使用できません（実物の柄、タイル、ストライプ）。': 'Unavailable with this pattern (real-swatch patterns, tiles and stripes).', '変化の強さ': 'Change amount', '侵食の速さ': 'Invasion speed', 'ラバランプを生成中…': 'Drawing the lava lamp…',
   'ブロブが生成・結合・分離します。計算に時間がかかります。プレビューは準備後に再生され、書き出しには数分かかります。リピートと比較表示では使用できません。': 'Blobs appear, merge and split. It takes time to compute. The preview plays once it is ready, and export takes minutes. Unavailable with tileable images and comparisons.',
   '動きの強さ': 'Motion amount', '動きの細かさ': 'Motion detail', 'ループの長さ': 'Loop length', 'MP4 を保存': 'Save MP4',
   '動画用の画像を生成中…': 'Drawing the image for the video…', '動画を作成できませんでした。': 'Could not create the video.',
@@ -76,7 +76,7 @@ const EN: Record<string, string> = {
   // 手元のテスト素材のセット名
   'カオ': 'Faces', 'アタマ': 'Heads', 'イヌ': 'Dogs', 'クルマ': 'Cars', 'ドウブツ': 'Animals', 'ネコ': 'Cats', 'ノリモノ': 'Vehicles', 'ヒト': 'People', 'ビル': 'Buildings', 'ポケモン': 'Pokémon',
   // 柄の名前
-  'Anyflage 標準': 'Anyflage standard', '角丸の正方形タイル': 'Rounded square tiles', 'ウッドランド（米 M81 系）': 'Woodland (US M81 type)', 'ブラッシュストローク（英 DPM 系）': 'Brushstroke (UK DPM type)', 'フレックターン（独）': 'Flecktarn (Germany)',
+  'Anyflage 標準': 'Anyflage standard', '角丸の正方形タイル': 'Rounded square tiles', '縦のストライプ': 'Vertical stripes', '横のストライプ（ボーダー）': 'Horizontal stripes', 'ウッドランド（米 M81 系）': 'Woodland (US M81 type)', 'ブラッシュストローク（英 DPM 系）': 'Brushstroke (UK DPM type)', 'フレックターン（独）': 'Flecktarn (Germany)',
   '陸自迷彩2型系': 'JGSDF Type 2 type', 'デジタル（CADPAT／MARPAT 系）': 'Digital (CADPAT / MARPAT type)', 'ベリョースカ（ソ連 KLMK 系）': 'Berezka (Soviet KLMK type)', 'タイガーストライプ（南ベトナム系）': 'Tigerstripe (South Vietnam type)',
   'スプリッター（独 1931 系）': 'Splinter (German 1931 type)', 'スプリッター（瑞 M90 系）': 'Splinter (Swedish M90 type)', 'フロッグスキン（米 1942 系）': 'Frog Skin (US 1942 type)', 'チョコチップ（米 6色デザート系）': 'Chocolate Chip (US six-colour desert type)',
   'グラデーション（MultiCam 系）': 'Gradient (MultiCam type)', 'ダズル（第一次大戦の艦船）': 'Dazzle (WWI ships)', '縦の筋（狩猟 ASAT 系）': 'Vertical streaks (hunting, ASAT type)', '大小2段のデジタル（狩猟 Optifade 系）': 'Two-scale digital (hunting, Optifade type)', 'ブレイズオレンジ（狩猟の安全色）': 'Blaze orange (hunting safety colour)',
@@ -85,6 +85,8 @@ const EN: Record<string, string> = {
   'ベリョースカ KLMK（ソ連、実物の形）': 'Berezka KLMK (Soviet, real shapes)', 'フロッグスキン（米、実物の形）': 'Frog Skin (US, real shapes)', '陸自迷彩2型（実物の形）': 'JGSDF Type 2 (real shapes)',
   // 柄の説明
   'Anyflage の標準の柄。値ノイズを3層、しきい値で重ねる。どの実物もまねていない。': 'The standard Anyflage pattern: three layers of value noise stacked by thresholds. It imitates no real camouflage.',
+  '迷彩ではない。まっすぐな縦の帯を並べる。帯1本がブロブ1つ。帯の幅は「ブロブの大きさ」の半分。長い帯の切り方は「大きすぎるブロブの切り方」で選ぶ。': 'Not camouflage. Straight vertical bands, one blob per band. Band width is half the blob size. Choose how long bands are cut with the oversized-blob setting.',
+  '迷彩ではない。まっすぐな横の帯を並べる。帯1本がブロブ1つ。帯の幅は「ブロブの大きさ」の半分。長い帯の切り方は「大きすぎるブロブの切り方」で選ぶ。': 'Not camouflage. Straight horizontal bands, one blob per band. Band width is half the blob size. Choose how long bands are cut with the oversized-blob setting.',
   '迷彩ではない。角の丸い正方形を升目に並べる。押し込み方を素直な形で比べるための見本。すき間には素材を入れない。「ブロブの大きさ」がタイル1枚の大きさ。': 'Not camouflage. Rounded squares on a grid, a plain shape for comparing how images get squeezed. Nothing is put in the gaps. "Blob size" is the size of one tile.',
   '1981年。茶が多いほうの ERDL を6割拡大した4色。明るい緑に染めた地へ、濃緑・茶・黒を重ねて刷る。縁はくっきり、ぼかしなし。黒は枝のように細く伸びる。': '1981. Four colours: the brown-dominant ERDL enlarged by 60%. Dark green, brown and black are printed over a light green ground. Edges are crisp with no blur. The black runs thin like twigs.',
   '1960年代。刷毛で払ったような、流れて渦を巻く4色の斑。流れの向きに沿って細長くのばしたノイズで作る。': '1960s. Four-colour blotches that flow and swirl like brush strokes, made from noise stretched along the direction of flow.',

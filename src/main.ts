@@ -1,7 +1,7 @@
 // テスト画面。samples/ の切り抜きを迷彩に押し込み、方式を切り替えたり並べたりして見る。
 // 状態は URL の ? に書ける（例 ?groups=ヒト,ネコ&method=harmonic&compare=6&seed=48213）。
 import { Kao } from './engine/kao.ts';
-import { PATTERNS, patternById } from './engine/patterns.ts';
+import { PATTERNS, STILL_IDS, patternById } from './engine/patterns.ts';
 import type { Method, Params, RGB } from './engine/types.ts';
 import * as engine from './client.ts';
 import { Motion } from './motion.ts';
@@ -527,8 +527,8 @@ const LAVA_FPS = 15, LAVA_MAX = 120;
 const lavaCount = (): number => Math.max(12, Math.min(LAVA_MAX, Math.round(+$('msec').value * LAVA_FPS)));
 let lavaN = 0;
 let lavaFrames: (HTMLCanvasElement | undefined)[] = [], lavaGen = 0, lavaShown = -1;
-/** いまの柄でラバランプを使えるか。見本画像から起こした柄と、タイルの柄は使えない（時間で動かせるノイズがない） */
-const lavaCanWith = (id: string): boolean => !id.startsWith('sw-') && id !== 'tiles';
+/** いまの柄でラバランプを使えるか。見本画像から起こした柄と、タイル・ストライプの柄は使えない（時間で動かせるノイズがない） */
+const lavaCanWith = (id: string): boolean => !id.startsWith('sw-') && !STILL_IDS.has(id);
 const lavaCan = (): boolean => lavaCanWith($('pattern').value);
 const lavaOn = (): boolean => $('motion').checked && $('lava').checked && lavaCan() && plain() && !$('repeat').checked;
 /** 侵食の早さ。絵が1コマに広がる距離（ブロブの大きさを 1 として）。1周 n コマのとき。スライダーは「1秒にブロブ何個分／秒」 */

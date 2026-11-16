@@ -447,7 +447,7 @@ export const Kao = (function () {
       var kc = keys ? keys[c] : c; // 素材・向き・回転を決める鍵。ふつうはブロブの番号
       var r1 = hash2(kc, 11, seed), r2 = hash2(kc, 23, seed), r3 = hash2(kc, 37, seed), r4 = hash2(kc, 41, seed);
       var ph0 = photos[camo.picks && camo.picks[c] >= 0 && camo.picks[c] < np ? camo.picks[c] : apart ? apart[c] : p.assign === 'layer' ? L % np : Math.floor(r1 * np) % np];
-      var ph: Source = 'pick' in ph0 ? ph0.pick(camo.aspect ? camo.aspect[c] : bw / bh) : ph0; // content-aware sources hand back a version carved for this blob's proportions
+      var ph: Source = 'pick' in ph0 ? ph0.pick(camo.aspect ? camo.aspect[c] : bw / bh, camo.carve ? camo.carve[c] : undefined) : ph0; // content-aware sources hand back a version carved for this blob's proportions
       if (ph.shape && p.method && p.method !== 'radial') {
         var opt: FitOptions = { method: p.method, ang: (r2 - 0.5) * 2 * Math.PI * p.rot, flip: !p.noFlip && r3 < 0.5 ? -1 : 1, spin: (r3 - 0.5) * 2, dist: dist, tint: tint, squeeze: sq, mix: p.mix === undefined ? 0.5 : p.mix, imp: p.imp || 0, smooth: !!p.smooth, trim: !!p.trim };
         if (p.method === 'elastic') renderElastic(out, camo, c, ph, col, opt); else if (p.method === 'carve') renderCarve(out, camo, c, ph, col, opt); else renderDisc(out, camo, c, ph, col, opt);

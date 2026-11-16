@@ -119,6 +119,8 @@ export interface Camo {
   ros?: Float32Array;
   /** ブロブごとの縦横比。あれば、素材の版（縦横比ごとに縮めたもの）を、ブロブの外接矩形ではなくこの値で選ぶ。動画用：版が行ったり来たりしないように */
   aspect?: Float32Array;
+  /** ブロブごとの、素材を縮める量（シームカービング、0〜0.9）。あれば、素材の包みにこの量の版を頼む。動画用：ブロブの大きさに合わせて量を変える */
+  carve?: Float32Array;
   /**
    * 絵を読む位置を、前のコマからなめらかにつなぐ。動画用。
    * ブロブの中の絵は、粗い格子で毎コマ解き直す。形が少し変わるだけで、格子の当たり方が変わり、絵が数画素ぴくぴく動く。
@@ -165,7 +167,7 @@ export interface Source extends Raster {
 }
 
 /** ブロブの縦横比を受けて、それ用に縮めた版を返す包み */
-export interface Picker { pick(aspect: number): Source }
+export interface Picker { pick(aspect: number, carve?: number): Source }
 export type SourceLike = Source | Picker;
 
 export interface CarveOptions {

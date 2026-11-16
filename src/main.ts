@@ -19,6 +19,9 @@ import type { Sample } from './samples.ts';
 
 const $ = <T extends HTMLElement = HTMLInputElement>(id: string): T => document.getElementById(id) as T;
 const num = (id: string): number => +$(id).value / 100;
+// 大きさと量のカーブの部品（下の「動かす」で使う）。起動してすぐの syncUi からも触るので、先に用意しておく
+const curveCv = document.getElementById('curve') as HTMLCanvasElement, CURVE_PAD = 16;
+let curveDrag = -1, curveLive: [number, number][] | null = null;
 
 const PALETTES: Record<string, string[]> = {
   // 1色だけの配色。迷彩の色の差がなくなり、押し込んだ画像だけでブロブが見える
@@ -399,7 +402,8 @@ function syncUi(): void {
   $('o-mamt').textContent = `${$('mamt').value}%`; $('o-mfine').textContent = `${$('mfine').value}升`; $('o-msec').textContent = `${$('msec').value}秒`;
   $('motion-box').hidden = !$('motion').checked;
   $('o-mamt2').textContent = `${$('mamt2').value}%`; $('o-mlava').textContent = `${$('mlava').value}%`; $('o-mclo').textContent = `${$('mclo').value}%`; $('o-mchi').textContent = `${$('mchi').value}%`; $('o-mcsp').textContent = `1周に ${$('mcsp').value}往復`;
-  $('mclo').disabled = $('mchi').disabled = $('mcsp').disabled = !$('msweep').checked; $('sweep-note').hidden = !$('msweep').checked;
+  $('mclo').disabled = $('mchi').disabled = $('mcmode').disabled = !$('msweep').checked; $('mcsp').disabled = !$('msweep').checked || $('mcmode').value !== 'sine';
+  $('sweep-note').hidden = !$('msweep').checked || $('mcmode').value !== 'sine'; $('size-note').hidden = $('curve-box').hidden = !$('msweep').checked || $('mcmode').value === 'sine'; drawCurve();
   $('mamt2').disabled = !$('mkind2').value; $('lava').disabled = !lavaCan(); $('lava-off').hidden = lavaCan(); $('mlava').disabled = $('mgrow').disabled = !$('lava').checked || !lavaCan(); $('o-mgrow').textContent = `ブロブ ${$('mgrow').value}個分／秒`; $('lava-note').hidden = !$('lava').checked || !lavaCan();
   const [vw, vh] = dims(videoLong()); $('video-note').textContent = `動画：${vw & ~1}×${vh & ~1} px、${VIDEO_FPS}fps、${$('msec').value}秒（ループ再生対応）`;
   syncMotion();
@@ -503,7 +507,7 @@ window.addEventListener('resize', () => drawBackdrop());
 // ---- 動かす ----
 // できあがった絵を、ループする「ずらしの場」で毎フレームゆがめる（motion.ts）。絵は作り直さないので、設定を変えてもすぐ動きが変わる。
 // 動かし方の設定を変えても、絵は描き直さない。
-const VIDEO_FPS = 30, MOTION_IDS = ['motion', 'mkind', 'mamt', 'mfine', 'msec', 'mkind2', 'mamt2', 'lava', 'mlava', 'mgrow', 'msweep', 'mclo', 'mchi', 'mcsp'];
+const VIDEO_FPS = 30, MOTION_IDS = ['motion', 'mkind', 'mamt', 'mfine', 'msec', 'mkind2', 'mamt2', 'lava', 'mlava', 'mgrow', 'msweep', 'mclo', 'mchi', 'mcsp', 'mcmode'];
 let motion: Motion | null = null, lastPhase: PhaseMap | null = null, motionRaf = 0;
 /** ふつうの絵（比較表示でも、切り抜きの一覧でもない）か。リピートと「呼吸」は、ふつうの絵のときだけ効く */
 const plain = (): boolean => !$('compare').value && !showSources;
@@ -534,7 +538,10 @@ const lavaCan = (): boolean => lavaCanWith($('pattern').value);
 const lavaOn = (): boolean => $('motion').checked && $('lava').checked && lavaCan() && plain() && !$('repeat').checked;
 // シームカービングの変化。素材を縮める量（シームカービング）を、下限と上限のあいだでサイン波のように往復させる。
 // コマごとに素材を準備し直して描くので、ラバランプと同じく、コマを先に描いておいて順に出す。迷彩（ブロブの形と割り当て）は変わらない。
-const sweepOn = (): boolean => $('motion').checked && $('msweep').checked && plain() && !$('repeat').checked;
+/** 時間で往復させる（サイン波） */
+const sweepOn = (): boolean => $('motion').checked && $('msweep').checked && $('mcmode').value === 'sine' && plain() && !$('repeat').checked;
+/** ラバランプのブロブの大きさで量を決める。ラバランプが入のときだけ */
+const sizeOn = (): boolean => $('msweep').checked && $('mcmode').value !== 'sine' && lavaOn();
 /** コマを先に描いておく動かし方（ラバランプ、シームカービングの変化）が入っているか */
 const framesOn = (): boolean => lavaOn() || sweepOn();
 /** 1周 n コマの i コマ目の、シームカービングの量（0〜0.9）。0 コマ目が下限。1周のあいだに「速さ」の回数だけ往復する（整数なので、ループはつながる）。0.1% 刻みに丸める（同じ量のコマは使い回せる）。あいだの量は、素材の側で 5% 刻みの版をなめらかにつないで作る */
@@ -542,6 +549,82 @@ function carveAt(i: number, n: number): number {
   const a = +$('mclo').value / 100, b = +$('mchi').value / 100, lo = Math.min(a, b), hi = Math.max(a, b);
   return Math.round((lo + (hi - lo) * (1 - Math.cos(Math.PI * 2 * i * Math.max(1, Math.round(+$('mcsp').value)) / n)) / 2) * 1000) / 1000;
 }
+// 大きさと量のカーブ。横がブロブの大きさ（0 が平均の 1/4 倍、1 が 4 倍。対数）、縦が量（0 が下限、1 が上限）。
+// 点をいくつか置き、あいだは行きすぎない3次の曲線（単調 3 次補間）でつなぐ。点は「x,y;x,y;…」の文字にして、ほかの設定と同じように URL に出す。
+// 'auto' は、変化の方法ごとの初期の形（小さいほど強く：右下がりの直線、大きいほど強く：右上がりの直線）
+type Pt = [number, number];
+function curvePts(): Pt[] {
+  const v = $('mcurve').value, down = $('mcmode').value !== 'big';
+  const pts = v && v !== 'auto' ? v.split(';').map((s) => s.split(',').map(Number) as Pt).filter((p) => p.length === 2 && isFinite(p[0]) && isFinite(p[1])) : [];
+  if (pts.length < 2) return down ? [[0, 1], [1, 0]] : [[0, 0], [1, 1]];
+  return pts.map((p): Pt => [Math.min(1, Math.max(0, p[0])), Math.min(1, Math.max(0, p[1]))]).sort((a, b) => a[0] - b[0]);
+}
+/** カーブを n 個の等間隔の値にする */
+function curveLut(n = 65, pts = curvePts()): number[] {
+  const k = pts.length, d: number[] = [], m: number[] = new Array(k).fill(0);
+  for (let i = 0; i < k - 1; i++) d.push((pts[i + 1][1] - pts[i][1]) / Math.max(1e-6, pts[i + 1][0] - pts[i][0]));
+  for (let i = 0; i < k; i++) m[i] = i === 0 ? d[0] : i === k - 1 ? d[k - 2] : d[i - 1] * d[i] <= 0 ? 0 : 2 * d[i - 1] * d[i] / (d[i - 1] + d[i]); // 山や谷では傾き 0。行きすぎない
+  const out: number[] = [];
+  for (let j = 0, i = 0; j < n; j++) {
+    const x = j / (n - 1);
+    if (x <= pts[0][0]) { out.push(pts[0][1]); continue; }
+    if (x >= pts[k - 1][0]) { out.push(pts[k - 1][1]); continue; }
+    while (i < k - 2 && x > pts[i + 1][0]) i++;
+    const h = Math.max(1e-6, pts[i + 1][0] - pts[i][0]), t = (x - pts[i][0]) / h, t2 = t * t, t3 = t2 * t;
+    out.push(Math.min(1, Math.max(0, (2 * t3 - 3 * t2 + 1) * pts[i][1] + (t3 - 2 * t2 + t) * h * m[i] + (-2 * t3 + 3 * t2) * pts[i + 1][1] + (t3 - t2) * h * m[i + 1])));
+  }
+  return out;
+}
+function drawCurve(): void {
+  if ($('curve-box').hidden) return;
+  const g = curveCv.getContext('2d')!, W = curveCv.width, H = curveCv.height, P = CURVE_PAD, pts = curveLive || curvePts(), lut = curveLut(129, pts);
+  const X = (x: number): number => P + x * (W - P * 2), Y = (y: number): number => H - P - y * (H - P * 2);
+  g.clearRect(0, 0, W, H); g.fillStyle = 'rgba(0,0,0,.28)'; g.fillRect(0, 0, W, H);
+  g.strokeStyle = 'rgba(255,255,255,.12)'; g.lineWidth = 1; g.beginPath();
+  for (let i = 0; i <= 4; i++) { g.moveTo(X(i / 4), Y(0)); g.lineTo(X(i / 4), Y(1)); g.moveTo(X(0), Y(i / 4)); g.lineTo(X(1), Y(i / 4)); }
+  g.stroke();
+  g.strokeStyle = '#C2B280'; g.lineWidth = 3; g.beginPath();
+  lut.forEach((y, i) => { const x = X(i / (lut.length - 1)); if (i) g.lineTo(x, Y(y)); else g.moveTo(x, Y(y)); });
+  g.stroke();
+  for (const [x, y] of pts) { g.beginPath(); g.arc(X(x), Y(y), 8, 0, Math.PI * 2); g.fillStyle = '#14170F'; g.fill(); g.strokeStyle = '#F2E9C9'; g.lineWidth = 3; g.stroke(); }
+}
+/** 画面の位置を、カーブの座標（0〜1）に直す */
+function curveAt(ev: PointerEvent | MouseEvent): Pt {
+  const r = curveCv.getBoundingClientRect(), P = CURVE_PAD, x = (ev.clientX - r.left) / r.width * curveCv.width, y = (ev.clientY - r.top) / r.height * curveCv.height;
+  return [Math.min(1, Math.max(0, (x - P) / (curveCv.width - P * 2))), Math.min(1, Math.max(0, (curveCv.height - P - y) / (curveCv.height - P * 2)))];
+}
+/** その位置に近い点の番号。なければ -1 */
+function curveHit(p: Pt, pts: Pt[]): number {
+  let best = -1, bd = 0.06;
+  pts.forEach((q, i) => { const d = Math.hypot((q[0] - p[0]), (q[1] - p[1]) * curveCv.height / curveCv.width); if (d < bd) { bd = d; best = i; } });
+  return best;
+}
+/** カーブを決めて、覚える。コマを描き直す */
+function curveCommit(pts: Pt[]): void {
+  $('mcurve').value = pts.map((p) => `${+p[0].toFixed(3)},${+p[1].toFixed(3)}`).join(';');
+  curveLive = null; drawCurve(); writeUrl(); void startLava();
+}
+curveCv.addEventListener('pointerdown', (ev) => {
+  const p = curveAt(ev), pts = curvePts();
+  let i = curveHit(p, pts);
+  if (i < 0) { i = pts.findIndex((q) => q[0] > p[0]); if (i < 0) i = pts.length; pts.splice(i, 0, p); } // 空いている所：点を足す
+  curveDrag = i; curveLive = pts; curveCv.setPointerCapture(ev.pointerId); drawCurve();
+});
+curveCv.addEventListener('pointermove', (ev) => {
+  if (curveDrag < 0 || !curveLive) return;
+  const p = curveAt(ev), i = curveDrag, n = curveLive.length;
+  // 両端の点は横に動かさない。あいだの点は、隣の点を越えない
+  const x = i === 0 ? 0 : i === n - 1 ? 1 : Math.min(curveLive[i + 1][0] - 0.02, Math.max(curveLive[i - 1][0] + 0.02, p[0]));
+  curveLive[i] = [x, p[1]]; drawCurve();
+});
+const curveEnd = (): void => { if (curveDrag >= 0 && curveLive) { curveDrag = -1; curveCommit(curveLive); } };
+curveCv.addEventListener('pointerup', curveEnd); curveCv.addEventListener('pointercancel', curveEnd);
+curveCv.addEventListener('dblclick', (ev) => {
+  const pts = curvePts(), i = curveHit(curveAt(ev), pts);
+  if (i > 0 && i < pts.length - 1) { pts.splice(i, 1); curveCommit(pts); } // 両端は消せない
+});
+$('curve-reset').addEventListener('click', () => { $('mcurve').value = 'auto'; curveLive = null; drawCurve(); writeUrl(); void startLava(); });
+
 /** カービングの変化の1コマぶんの、素材の作り方。量 c。5% 刻みの版のあいだを、なめらかにつなぐ */
 const sweepMat = (c: number, p: Params): MaterialOptions => ({ ...matOptions(c), blend: true, fit: { method: p.method || 'radial', mix: p.mix === undefined ? 0.5 : p.mix, imp: p.imp || 0, trim: !!p.trim } });
 /** その量での素材を、準備する役たちに先に作ってもらう */
@@ -581,13 +664,15 @@ const lavaLead = (n: number): number => Math.min(n - 1, Math.ceil(0.4 * n / +$('
  * stale が true を返したら、途中でやめる。note には、下ごしらえの進み具合が来る。
  */
 async function lavaRun(W: number, H: number, mats: string[], p: Params, n: number, emit: (i: number, img: ImageData) => void | Promise<void>, note: (text: string, done: number) => void, stale: () => boolean = () => false): Promise<void> {
-  const lead = lavaLead(n), sweep = sweepOn();
+  const lead = lavaLead(n), sweep = sweepOn(), size = sizeOn();
+  const lo = Math.min(+$('mclo').value, +$('mchi').value) / 100, hi = Math.max(+$('mclo').value, +$('mchi').value) / 100;
+  if (size) await prepAt(mats, p, sweepMat(num('carve'), p));
   const step = async (i: number, pass: 'f' | 'b' | 'draw', first: boolean): Promise<ImageData> => {
     // シームカービングの変化と重ねるときは、絵を描くコマだけ、そのコマの量の素材を使う。下ごしらえは顔の割り当てをたどるだけなので、いつもの素材でよい
-    const mat: MaterialOptions = sweep && pass === 'draw' ? sweepMat(carveAt(i, n), p) : matOptions();
+    const mat: MaterialOptions = size ? sweepMat(num('carve'), p) : sweep && pass === 'draw' ? sweepMat(carveAt(i, n), p) : matOptions();
     if (sweep && pass === 'draw') await prepAt(mats, p, mat);
     const job: Job = { kind: 'one', W, H, p: { ...p, layerAt: undefined }, colors: colors(p.pattern || 'blob') as number[][], mats, mat, soft: $('soft').checked, edges: $('edges').checked, reuse: false,
-      lava: { theta: Math.PI * 2 * i / n, amount: +$('mlava').value / 100, first, grow: lavaGrow(n), dt: +$('msec').value / n, pass, index: i, count: n } };
+      lava: { theta: Math.PI * 2 * i / n, amount: +$('mlava').value / 100, first, grow: lavaGrow(n), dt: +$('msec').value / n, pass, index: i, count: n, bySize: size ? { lo, hi, lut: curveLut() } : undefined } };
     const r = await engine.render(job);
     return new ImageData(r.data, r.W, r.H);
   };
@@ -716,7 +801,7 @@ $('save-video').addEventListener('click', async () => {
 });
 
 // ---- URL との行き来 ----
-const FIELDS = [...SLIDERS, 'size', 'method', 'compare', 'assign', 'ratio', 'ow', 'oh', 'palette', 'pattern', 'split', 'mkind', 'mamt', 'mfine', 'msec', 'mkind2', 'mamt2', 'mlava', 'mgrow', 'mclo', 'mchi', 'mcsp'];
+const FIELDS = [...SLIDERS, 'size', 'method', 'compare', 'assign', 'ratio', 'ow', 'oh', 'palette', 'pattern', 'split', 'mkind', 'mamt', 'mfine', 'msec', 'mkind2', 'mamt2', 'mlava', 'mgrow', 'mclo', 'mchi', 'mcsp', 'mcmode', 'mcurve'];
 function writeUrl(): void {
   const q = new URLSearchParams();
   q.set('groups', [...picked].join(','));
@@ -799,7 +884,7 @@ window.addEventListener('keydown', (ev) => {
 const QUIET = ['ownname', 'own', 'ownkind', 'ow', 'oh', 'size', 'size-jog', 'showsrc', 'lang'];
 const isSlider = (t: EventTarget | null): boolean => t instanceof HTMLInputElement && t.type === 'range';
 // 動かし方の設定は、絵を描き直さない。動きだけ変える
-$('sheet').addEventListener('input', (ev) => { const id = (ev.target as HTMLElement).id; if (MOTION_IDS.includes(id)) { ev.stopImmediatePropagation(); syncUi(); if (!isSlider(ev.target)) { writeUrl(); if (id === 'lava' || id === 'motion' || id === 'msweep') void startLava(); } } });
+$('sheet').addEventListener('input', (ev) => { const id = (ev.target as HTMLElement).id; if (MOTION_IDS.includes(id)) { ev.stopImmediatePropagation(); syncUi(); if (!isSlider(ev.target)) { writeUrl(); if (id === 'mcmode') $('mcurve').value = 'auto'; if (id === 'lava' || id === 'motion' || id === 'msweep' || id === 'mcmode') { syncUi(); void startLava(); } } } });
 $('sheet').addEventListener('change', (ev) => { const id = (ev.target as HTMLElement).id; if (MOTION_IDS.includes(id)) { ev.stopImmediatePropagation(); if (isSlider(ev.target)) { writeUrl(); if (id === 'mlava' || id === 'mgrow' || id === 'mclo' || id === 'mchi' || id === 'mcsp' || (id === 'msec' && ($('lava').checked || $('msweep').checked))) void startLava(); } } });
 $('sheet').addEventListener('input', (ev) => { if (QUIET.includes((ev.target as HTMLElement).id)) return; syncUi(); if ((ev.target as HTMLElement).closest('#pal-box')) return; if (!isSlider(ev.target)) void draw(); });
 $('sheet').addEventListener('change', (ev) => { if (isSlider(ev.target) && !QUIET.includes((ev.target as HTMLElement).id)) void draw(); });

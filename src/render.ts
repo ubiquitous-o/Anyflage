@@ -38,6 +38,8 @@ export interface Lava {
   grow: number;
   /** 1コマの時間（秒）。絵を読む位置をならす強さを決める */
   dt: number;
+  /** あれば、素材を縮める量（シームカービング）を、ブロブの大きさで決める。lo〜hi のあいだ。lut は、大きさ（小さい側から大きい側へ、等間隔）ごとの量の割合（0 が lo、1 が hi） */
+  bySize?: { lo: number; hi: number; lut: number[] };
   /**
    * 何をするコマか。
    *   f：鍵を前向きにたどる（0 コマ目から順に）。絵は描かない。コマごとの鍵を覚える
@@ -274,6 +276,8 @@ let lavaKeys: { F: (Int32Array | undefined)[]; B: (Int32Array | undefined)[] } =
  * 止まった絵で入っていた素材の番号（pick）と、絵の向きを合わせるために足す回転（turn）。
  */
 let lavaStill: { pick: Map<number, number>; turn: Map<number, number> } = { pick: new Map(), turn: new Map() };
+/** 大きさで量を決めるときの、基準の広さ（0 コマ目のブロブの平均） */
+let lavaRef = 0;
 let lavaPrev: {
   W: number; H: number;
   /** 画素ごとの、そこに絵を出していたブロブの鍵。色だけ塗った所は -1 */
@@ -286,6 +290,8 @@ let lavaPrev: {
   layerOf: Map<number, number>;
   /** 鍵ごとの、素材の版を選んだときの縦横比 */
   aspectOf: Map<number, number>;
+  /** 鍵ごとの、素材を縮める量。大きさで量を決めるときだけ使う */
+  carveOf: Map<number, number>;
   /** 前のコマで、画素ごとに絵を読んだ位置。描いたコマのあとだけある */
   uv: { u: Float32Array<ArrayBuffer>; v: Float32Array<ArrayBuffer>; set: Uint8Array } | null;
 } | null = null;
@@ -411,9 +417,24 @@ function renderLava(job: Job, p0: Params, src: Picker[]): Result {
     if (a0 && lv.index !== 0 && Math.abs(Math.log(a / a0)) < 0.5) a = a0; // 0 コマ目は、止まった絵と同じ版を使う
     aspect[c] = a; if (!(cam.flat && cam.flat[c])) aspectOf.set(camKeys[c], a);
   }
+  // 素材を縮める量を、ブロブの大きさで決める。基準は 0 コマ目のブロブの平均の広さ。その 1/4 倍から 4 倍までを、量の端から端に当てる。
+  // ブロブがくっついたり離れたりすると広さがいきなり変わるので、量は前のコマから少しずつ寄せる（0.4 秒ほどで追いつく）
+  const carveOf = new Map<number, number>();
+  let carve: Float32Array | undefined;
+  if (lv.bySize) {
+    if (!lavaRef || (lv.pass === 'f' && lv.index === 0)) { let s = 0, k = 0; for (let c = 0; c < cmA.count; c++) if (cmA.area[c] && !(cam.flat && cam.flat[c])) { s += cmA.area[c]; k++; } lavaRef = k ? s / k : 1; }
+    const { lo, hi, lut } = lv.bySize, al = 1 - Math.exp(-Math.max(0.001, lv.dt) / 0.4);
+    carve = new Float32Array(cmA.count);
+    for (let c = 0; c < cmA.count; c++) {
+      const u = Math.min(1, Math.max(0, (Math.log2(Math.max(1, cmA.area[c]) / lavaRef) + 2) / 4)) * (lut.length - 1), i0 = Math.min(lut.length - 2, u | 0);
+      const want = lo + (hi - lo) * Math.min(1, Math.max(0, lut[i0] + (lut[i0 + 1] - lut[i0]) * (u - i0))), was = prev ? prev.carveOf.get(camKeys[c]) : undefined;
+      const a = was === undefined || lv.index === 0 && lv.pass !== 'draw' ? want : was + (want - was) * al;
+      carve[c] = a; if (!(cam.flat && cam.flat[c])) carveOf.set(camKeys[c], a);
+    }
+  }
   if (lv.pass === 'f') lavaKeys.F[lv.index] = keys; else if (lv.pass === 'b') lavaKeys.B[lv.index] = keys;
-  if (dry) { lavaPrev = { W, H, owner, org, ageOf, layerOf, aspectOf, uv: null }; return { data: new Uint8ClampedArray(4), W: 1, H: 1, blobs: bm.count }; } // 絵は返さない。1画素だけ
-  cam.keys = camKeys; cam.steady = true; cam.aspect = aspect;
+  if (dry) { lavaPrev = { W, H, owner, org, ageOf, layerOf, aspectOf, carveOf, uv: null }; return { data: new Uint8ClampedArray(4), W: 1, H: 1, blobs: bm.count }; } // 絵は返さない。1画素だけ
+  cam.keys = camKeys; cam.steady = true; cam.aspect = aspect; cam.carve = carve;
   cam.maps = {}; cam.ros = undefined; // 0 コマ目で向きを測ったときの写像は使わない（回し戻す前のもの）
   const picks = new Int32Array(cmA.count).fill(-1), turn = new Float32Array(cmA.count);
   for (let c = 0; c < cmA.count; c++) { const pk = lavaStill.pick.get(camKeys[c]); if (pk !== undefined) picks[c] = pk; turn[c] = lavaStill.turn.get(camKeys[c]) || 0; }
@@ -429,7 +450,7 @@ function renderLava(job: Job, p0: Params, src: Picker[]): Result {
   Kao.renderCamo(data, cam, src, job.colors as RGB[], p);
   if (job.soft) softenEdges(data, W, H, cam);
   if (job.edges) whiteEdges(data, cam.ids, W, 0, 0, W - 1, H - 1);
-  lavaPrev = { W, H, owner, org, ageOf, layerOf, aspectOf, uv: { u: ease.nu, v: ease.nv, set: ease.set } };
+  lavaPrev = { W, H, owner, org, ageOf, layerOf, aspectOf, carveOf, uv: { u: ease.nu, v: ease.nv, set: ease.set } };
   return { data, W, H, blobs: bm.count };
 }
 

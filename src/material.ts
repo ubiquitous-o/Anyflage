@@ -52,11 +52,12 @@ export class Material {
     const base = this.variant(o, 0);
     if (!base) return null;
     return {
-      pick: (aspect) => {
-        if (!o.fitBlob) return base;
+      pick: (aspect, carve) => {
         let best = 0, bd = Infinity;
-        for (const b of BUCKETS) { const d = Math.abs(Math.log(aspect / b)); if (d < bd) { bd = d; best = b; } }
-        return this.variant(o, best) || base;
+        if (o.fitBlob) for (const b of BUCKETS) { const d = Math.abs(Math.log(aspect / b)); if (d < bd) { bd = d; best = b; } }
+        // ブロブごとに量が指定されたら、その量の版をその場で作る（刻みの版をまぜるだけなので速い）。量がばらばらなので、覚えない
+        if (carve !== undefined && o.blend) return this.blended({ ...o, carve }, best) || base;
+        return best ? this.variant(o, best) || base : base;
       },
     };
   }
@@ -153,8 +154,8 @@ function invToRaw(iv: Inv, G: CarveGrid): Inv {
 
 /** 本当にカービングする量の刻みと、量の上限 */
 const STEP = 0.05, CARVE_MAX = 0.9;
-/** 覚えておく刻みの版の数。縦横比5つ × 刻み2つぶんと、少し */
-const GRID_KEEP = 12;
+/** 覚えておく刻みの版の数。ブロブごとに量が違うとき、1つの素材がいくつもの刻みを使う */
+const GRID_KEEP = 24;
 /**
  * 升目の表2つ（量のちがう版）を t でまぜて、絵を作る。
  * できあがりの絵の同じ割合の位置どうしで、「元の絵のどこを読むか」をまぜる。絵の大きさと輪郭も、2つのあいだになる
